@@ -26,7 +26,7 @@ import json
 import glob
 import subprocess
 
-VERSION_LOCAL = "1.1.6"
+VERSION_LOCAL = "1.1.7"
 
 def is_dir_writable(path):
     try:
@@ -2123,6 +2123,15 @@ class CapturaApp:
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL
             )
+            
+            # Informar al usuario en la barra de estado por si hay restricciones de red / firewall local
+            self.lbl_status.config(text="Visor abierto. Si tu Firewall/Proxy bloquea la carga, arrastra el trace.zip a la ventana.")
+            
+            # Abrir la carpeta contenedora en el explorador para facilitar el arrastre (drag-and-drop) al usuario
+            try:
+                os.startfile(os.path.dirname(os.path.abspath(self.trace_file)))
+            except Exception:
+                pass
         except Exception as e:
             messagebox.showerror("Error", f"No se pudo abrir el visor de trazas: {e}")
 
