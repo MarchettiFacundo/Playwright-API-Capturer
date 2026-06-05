@@ -26,7 +26,7 @@ import json
 import glob
 import subprocess
 
-VERSION_LOCAL = "1.1.3"
+VERSION_LOCAL = "1.1.4"
 
 def is_dir_writable(path):
     try:
@@ -1113,7 +1113,6 @@ class CapturaApp:
         lbl_url.grid(row=0, column=4, padx=(10, 5), pady=2, sticky="w")
         
         self.entry_url = ttk.Entry(control_frame, font=("Segoe UI", 10))
-        self.entry_url.insert(0)
         self.entry_url.grid(row=0, column=5, padx=5, pady=2, sticky="ew")
         
         # Fila 1: Botones de control
