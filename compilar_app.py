@@ -107,10 +107,10 @@ def generar_splash_personalizado(ruta_salida=os.path.join("assets", "splash.png"
         
         # Barra de carga de simulación
         draw.rectangle([50, 270, 500, 276], fill=(30, 41, 59, 255)) # Fondo
-        draw.rectangle([50, 270, 380, 276], fill=(6, 182, 212, 255)) # Relleno (65%)
+        # draw.rectangle([50, 270, 380, 276], fill=(6, 182, 212, 255)) # Relleno (65%) - Omitido para usar barra dinámica
         
-        # Mensaje de inicialización
-        draw.text((275, 305), "Inicializando entorno y módulos Python...", fill=(148, 163, 184, 255), font=font_loading, anchor="ms")
+        # Mensaje de inicialización (omitido para usar el texto dinámico de PyInstaller)
+        # draw.text((275, 305), "Inicializando entorno y módulos Python...", fill=(148, 163, 184, 255), font=font_loading, anchor="ms")
         
         image.save(ruta_salida, format="PNG")
         print(f"[OK] Pantalla de carga (Splash) generada con éxito en: {ruta_salida}")
@@ -124,13 +124,7 @@ def compilar_ejecutable():
         cmd = [
             "pyinstaller",
             "--clean",
-            "--onefile",
-            "--noconsole",
-            "--collect-all", "playwright",
-            f"--icon={os.path.join('assets', 'app_icon.ico')}",
-            f"--splash={os.path.join('assets', 'splash.png')}",
-            "--name=Playwright API Capturer",
-            os.path.join("src", "captura_gui.py")
+            "Playwright API Capturer.spec"
         ]
         # Ejecutar pyinstaller
         subprocess.run(cmd, check=True)

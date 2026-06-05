@@ -1,43 +1,223 @@
+import sys
+import os
+
+# Módulos y funciones globales para importación diferida/dinámica
+async_playwright = None
+limpiar_headers = None
+generar_script_unificado = None
+generar_script_python = None
+generar_script_automatizacion_dom = None
+generar_lista_selectores_json = None
+generar_reporte_selectores_txt = None
+
+# 1. Intentar configurar una variable para saber si el splash nativo de PyInstaller estuvo activo
+_splash_disponible = False
+try:
+    import pyi_splash
+    _splash_disponible = True
+except ImportError:
+    pass
+
 import tkinter as tk
 from tkinter import ttk, messagebox, scrolledtext
 import threading
 import queue
 import json
-import os
 import glob
 import subprocess
-import sys
 
-# Si la aplicación está compilada (PyInstaller), redirigimos a Playwright para usar los navegadores instalados en el sistema
-if getattr(sys, 'frozen', False):
-    local_appdata = os.environ.get("LOCALAPPDATA")
-    if local_appdata:
-        os.environ["PLAYWRIGHT_BROWSERS_PATH"] = os.path.join(local_appdata, "ms-playwright")
+VERSION_LOCAL = "1.0"
 
-from playwright.async_api import async_playwright
+def is_dir_writable(path):
+    try:
+        test_file = os.path.join(path, ".test_write")
+        with open(test_file, "w") as f:
+            f.write("test")
+        os.remove(test_file)
+        return True
+    except Exception:
+        return False
 
-# Añadir el directorio actual al path para importar captura_api de forma robusta
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+def get_documents_folder():
+    try:
+        import ctypes
+        from ctypes import wintypes
+        CSIDL_PERSONAL = 5
+        SHGFP_TYPE_CURRENT = 0
+        buf = ctypes.create_unicode_buffer(wintypes.MAX_PATH)
+        ctypes.windll.shell32.SHGetFolderPathW(None, CSIDL_PERSONAL, None, SHGFP_TYPE_CURRENT, buf)
+        return buf.value
+    except Exception:
+        return os.path.join(os.path.expanduser("~"), "Documents")
 
-# Importamos funciones del script original captura_api.py
-try:
-    from captura_api import (generar_script_unificado, generar_script_python, limpiar_headers, 
-                             generar_script_automatizacion_dom, generar_lista_selectores_json, 
-                             generar_reporte_selectores_txt)
-except ImportError:
-    # Definición de respaldo si no se encuentra en el path
-    def limpiar_headers(headers):
-        return {k: v for k, v in headers.items() if k.lower() not in ['host', 'connection']}
-    def generar_script_unificado(peticiones, nombre_archivo, parametrizar=False):
-        pass
-    def generar_script_python(peticion, nombre_archivo, parametrizar=False):
-        pass
-    def generar_script_automatizacion_dom(acciones, nombre_archivo, parametrizar=False):
-        pass
-    def generar_lista_selectores_json(acciones, nombre_archivo):
-        pass
-    def generar_reporte_selectores_txt(acciones, nombre_archivo):
-        pass
+def verificar_actualizaciones(app_instance):
+    def check():
+        import urllib.request
+        import json
+        url_version_remota = "https://raw.githubusercontent.com/MarchettiFacundo/Playwright-API-Capturer/main/version.json"
+        try:
+            req = urllib.request.Request(
+                url_version_remota, 
+                headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+            )
+            with urllib.request.urlopen(req, timeout=5) as response:
+                data = json.loads(response.read().decode())
+                version_remota = data.get("version")
+                url_descarga = data.get("download_url")
+                
+                if version_remota:
+                    try:
+                        v_local_parts = [int(x) for x in VERSION_LOCAL.split('.')]
+                        v_remota_parts = [int(x) for x in version_remota.split('.')]
+                    except ValueError:
+                        v_local_parts = [0]
+                        v_remota_parts = [0]
+                        
+                    if v_remota_parts > v_local_parts:
+                        app_instance.root.after(0, lambda: notificar_actualizacion(version_remota, url_descarga))
+        except Exception:
+            pass
+
+    def notificar_actualizacion(v_remota, url):
+        if messagebox.askyesno(
+            "Actualización Disponible", 
+            f"¡Una nueva versión (v{v_remota}) está disponible!\n"
+            f"Tu versión actual es la v{VERSION_LOCAL}.\n\n"
+            "¿Deseas descargar el nuevo instalador ahora?"
+        ):
+            import webbrowser
+            webbrowser.open(url)
+
+    threading.Thread(target=check, daemon=True).start()
+
+def obtener_ruta_recurso(relative_path):
+    try:
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(base_path, relative_path)
+
+class SplashWindow(tk.Toplevel):
+    def __init__(self, parent, image_path):
+        super().__init__(parent)
+        self.overrideredirect(True)
+        
+        # Dimensiones de la ventana (550x350 para que coincida con la imagen generada)
+        width = 550
+        height = 350
+        
+        # Centrar la ventana en la pantalla
+        screen_width = self.winfo_screenwidth()
+        screen_height = self.winfo_screenheight()
+        x = (screen_width - width) // 2
+        y = (screen_height - height) // 2
+        self.geometry(f"{width}x{height}+{x}+{y}")
+        
+        # Configurar colores y estilos
+        self.configure(bg="#0f172a") # #0f172a
+        
+        # Cargar imagen usando PIL
+        try:
+            from PIL import Image as PILImage, ImageTk as PILImageTk
+            self.bg_image = PILImage.open(image_path)
+            self.bg_photo = PILImageTk.PhotoImage(self.bg_image)
+            self.label_bg = tk.Label(self, image=self.bg_photo, borderwidth=0, highlightthickness=0)
+            self.label_bg.pack(fill="both", expand=True)
+        except Exception as e:
+            # Fallback simple si falla la carga de la imagen
+            self.label_bg = tk.Label(self, text="Playwright API Capturer", fg="#f8fafc", bg="#0f172a", font=("Segoe UI", 16, "bold"))
+            self.label_bg.pack(pady=40)
+            
+        # Crear barra de progreso cian usando un tk.Frame para evitar fallos de estilos de temas
+        self.progress_bar = tk.Frame(self.label_bg, bg="#06b6d4", height=6)
+        self.progress_bar.place(x=50, y=270, width=0)
+        
+        # Label de estado
+        self.status_label = tk.Label(self.label_bg, 
+                                     text="Inicializando...", 
+                                     fg="#94a3b8", 
+                                     bg="#0f172a", 
+                                     font=("Segoe UI", 10))
+        self.status_label.place(x=50, y=295, width=450, anchor="w")
+        
+        # Forzar actualización inicial
+        self.update()
+
+    def update_status(self, value, text):
+        new_width = int(450 * (value / 100.0))
+        self.progress_bar.place(width=new_width)
+        self.status_label.config(text=text)
+        self.update()
+
+def cargar_modulos_y_dependencias(progress_callback=None):
+    global async_playwright, limpiar_headers, generar_script_unificado
+    global generar_script_python, generar_script_automatizacion_dom
+    global generar_lista_selectores_json, generar_reporte_selectores_txt
+    
+    import time
+    
+    if progress_callback:
+        progress_callback(10, "Cargando dependencias del sistema...")
+        time.sleep(0.15)
+        
+    # Redirigir variables de entorno de Playwright si está compilado
+    if getattr(sys, 'frozen', False):
+        local_appdata = os.environ.get("LOCALAPPDATA")
+        if local_appdata:
+            os.environ["PLAYWRIGHT_BROWSERS_PATH"] = os.path.join(local_appdata, "ms-playwright")
+            
+    if progress_callback:
+        progress_callback(35, "Cargando motor Playwright...")
+        time.sleep(0.15)
+        
+    from playwright.async_api import async_playwright
+    
+    if progress_callback:
+        progress_callback(70, "Cargando módulos de captura...")
+        time.sleep(0.15)
+        
+    # Añadir el directorio actual al path para importar captura_api de forma robusta
+    sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+    
+    try:
+        from captura_api import (
+            generar_script_unificado as g_unificado, 
+            generar_script_python as g_python, 
+            limpiar_headers as l_headers, 
+            generar_script_automatizacion_dom as g_dom, 
+            generar_lista_selectores_json as g_json, 
+            generar_reporte_selectores_txt as g_txt
+        )
+        limpiar_headers = l_headers
+        generar_script_unificado = g_unificado
+        generar_script_python = g_python
+        generar_script_automatizacion_dom = g_dom
+        generar_lista_selectores_json = g_json
+        generar_reporte_selectores_txt = g_txt
+    except ImportError:
+        def l_headers(headers):
+            return {k: v for k, v in headers.items() if k.lower() not in ['host', 'connection']}
+        def g_unificado(peticiones, nombre_archivo, parametrizar=False):
+            pass
+        def g_python(peticion, nombre_archivo, parametrizar=False):
+            pass
+        def g_dom(acciones, nombre_archivo, parametrizar=False):
+            pass
+        def g_json(acciones, nombre_archivo):
+            pass
+        def g_txt(acciones, nombre_archivo):
+            pass
+            
+        limpiar_headers = l_headers
+        generar_script_unificado = g_unificado
+        generar_script_python = g_python
+        generar_script_automatizacion_dom = g_dom
+        generar_lista_selectores_json = g_json
+        generar_reporte_selectores_txt = g_txt
+        
+    if progress_callback:
+        progress_callback(95, "Finalizando preparación de GUI...")
+        time.sleep(0.2)
 
 # JS inyectado en el navegador para capturar selectores semánticos en caliente
 JS_SCRIPT = r"""
@@ -313,12 +493,13 @@ JS_SCRIPT = r"""
 
 # Definición del Hilo de Captura de Playwright
 class PlaywrightCaptureThread(threading.Thread):
-    def __init__(self, url, output_queue, video_dir="output_videos", trace_file="trace.zip", modo="APIs de Red (HTTP)", navegador="Chromium"):
+    def __init__(self, url, output_queue, video_dir="output_videos", trace_file="trace.zip", log_file="debug_playwright.log", modo="APIs de Red (HTTP)", navegador="Chromium"):
         super().__init__()
         self.url = url
         self.output_queue = output_queue
         self.video_dir = video_dir
         self.trace_file = trace_file
+        self.log_file = log_file
         self.modo = modo
         self.navegador = navegador
         self.browser = None
@@ -413,7 +594,7 @@ class PlaywrightCaptureThread(threading.Thread):
                                     datos["respuesta"] = f"<Respuesta con error status {response.status}>"
 
                             try:
-                                with open("debug_playwright.log", "a", encoding="utf-8") as f:
+                                with open(self.log_file, "a", encoding="utf-8") as f:
                                     f.write(f"Callback interceptar_respuesta: {datos.get('metodo')} {datos.get('url')[:60]}\n")
                             except Exception:
                                 pass
@@ -441,7 +622,7 @@ class PlaywrightCaptureThread(threading.Thread):
                             main_frame = page_obj.main_frame if page_obj else None
                             
                             # Diagnóstico en debug log
-                            with open("debug_playwright.log", "a", encoding="utf-8") as debug_file:
+                            with open(self.log_file, "a", encoding="utf-8") as debug_file:
                                 debug_file.write(f"[DEBUG_FRAME] source.frame: name={curr_frame.name if curr_frame else None!r}, url={curr_frame.url[:120] if curr_frame else None!r}\n")
                                 debug_file.write(f"[DEBUG_FRAME] main_frame: name={main_frame.name if main_frame else None!r}, url={main_frame.url[:120] if main_frame else None!r}\n")
                                 debug_file.write(f"[DEBUG_FRAME] es_main_frame: {curr_frame == main_frame}\n")
@@ -453,7 +634,7 @@ class PlaywrightCaptureThread(threading.Thread):
                                     iframe_name = await iframe_handle.get_attribute("name")
                                     iframe_src = await iframe_handle.get_attribute("src")
                                     
-                                    with open("debug_playwright.log", "a", encoding="utf-8") as debug_file:
+                                    with open(self.log_file, "a", encoding="utf-8") as debug_file:
                                         debug_file.write(f"[DEBUG_FRAME] Encontrado iframe: id={iframe_id!r}, name={iframe_name!r}, src={iframe_src[:120]!r}\n")
                                     
                                     # Generar un selector lo más estable posible para el iframe
@@ -474,7 +655,7 @@ class PlaywrightCaptureThread(threading.Thread):
                                 curr_frame = curr_frame.parent_frame
                         except Exception as frame_err:
                             import traceback
-                            with open("debug_playwright.log", "a", encoding="utf-8") as debug_file:
+                            with open(self.log_file, "a", encoding="utf-8") as debug_file:
                                 debug_file.write(f"[WARN] Error resolviendo ruta de iframes: {frame_err}\n")
                                 debug_file.write(traceback.format_exc() + "\n")
                             
@@ -486,7 +667,7 @@ class PlaywrightCaptureThread(threading.Thread):
                             datos["descriptor_legible"] = f"[{ruta_visual}] {datos['descriptor_legible']}"
                             
                         try:
-                            with open("debug_playwright.log", "a", encoding="utf-8") as f:
+                            with open(self.log_file, "a", encoding="utf-8") as f:
                                 f.write(f"Callback registrar_accion: {datos.get('tipo_accion')} {datos.get('descriptor_legible')}\n")
                         except Exception:
                             pass
@@ -646,13 +827,24 @@ class CapturaApp:
         else:
             self.raiz_proyecto = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
             
-        self.video_dir = os.path.join(self.raiz_proyecto, "output_videos")
-        self.trace_file = os.path.join(self.raiz_proyecto, "trace.zip")
+        # Determinar si la raíz del proyecto es escribible para guardar los outputs.
+        # Si no es escribible (ej. instalado en Program Files), se usa la carpeta Documentos.
+        if is_dir_writable(self.raiz_proyecto):
+            self.output_base_dir = self.raiz_proyecto
+        else:
+            self.output_base_dir = os.path.join(get_documents_folder(), "Playwright API Capturer")
+            os.makedirs(self.output_base_dir, exist_ok=True)
+            
+        self.video_dir = os.path.join(self.output_base_dir, "output_videos")
+        self.trace_file = os.path.join(self.output_base_dir, "trace.zip")
+        self.log_file = os.path.join(self.output_base_dir, "debug_playwright.log")
         
         self.configurar_estilos()
         self.crear_widgets()
         
         self.root.after(100, self.procesar_cola)
+        # Buscar actualizaciones después de 2 segundos en segundo plano
+        self.root.after(2000, lambda: verificar_actualizaciones(self))
 
     def configurar_estilos(self):
         self.color_bg = "#0f172a"
@@ -987,6 +1179,7 @@ class CapturaApp:
             output_queue=self.queue,
             video_dir=self.video_dir,
             trace_file=self.trace_file,
+            log_file=self.log_file,
             modo=self.combo_modo.get(),
             navegador=self.combo_navegador.get()
         )
@@ -1024,14 +1217,14 @@ class CapturaApp:
                     break
                 except Exception as get_err:
                     try:
-                        with open("debug_playwright.log", "a", encoding="utf-8") as f:
+                        with open(self.log_file, "a", encoding="utf-8") as f:
                             f.write(f"GUI Error get_nowait: {get_err}\n")
                     except Exception:
                         pass
                     break
                 
                 try:
-                    with open("debug_playwright.log", "a", encoding="utf-8") as f:
+                    with open(self.log_file, "a", encoding="utf-8") as f:
                         f.write(f"GUI procesando cola: Tipo={tipo}\n")
                 except Exception:
                     pass
@@ -1106,13 +1299,13 @@ class CapturaApp:
                         self.capture_thread = None
                 except Exception as inner_err:
                     try:
-                        with open("debug_playwright.log", "a", encoding="utf-8") as f:
+                        with open(self.log_file, "a", encoding="utf-8") as f:
                             f.write(f"GUI Error interno procesando tipo {tipo}: {inner_err}\n")
                     except Exception:
                         pass
         except Exception as outer_err:
             try:
-                with open("debug_playwright.log", "a", encoding="utf-8") as f:
+                with open(self.log_file, "a", encoding="utf-8") as f:
                     f.write(f"GUI Error externo en procesar_cola: {outer_err}\n")
             except Exception:
                 pass
@@ -1525,7 +1718,7 @@ class CapturaApp:
         if is_api:
             from tkinter import filedialog
             nombre_archivo = filedialog.asksaveasfilename(
-                initialdir=self.raiz_proyecto,
+                initialdir=self.output_base_dir,
                 initialfile="flujo_unificado.py",
                 defaultextension=".py",
                 filetypes=[("Archivos Python", "*.py"), ("Todos los archivos", "*.*")],
@@ -1596,7 +1789,7 @@ class CapturaApp:
                 defaultext = ".txt"
 
             nombre_archivo = filedialog.asksaveasfilename(
-                initialdir=self.raiz_proyecto,
+                initialdir=self.output_base_dir,
                 initialfile=init_file,
                 defaultextension=defaultext,
                 filetypes=file_types,
@@ -1717,14 +1910,35 @@ class CapturaApp:
 
 
 if __name__ == "__main__":
+    # Iniciar root de Tkinter y ocultarlo temporalmente
     root = tk.Tk()
-    app = CapturaApp(root)
+    root.withdraw()
     
-    # Cerramos el splash screen de PyInstaller si está disponible
-    try:
-        import pyi_splash
-        pyi_splash.close()
-    except ImportError:
-        pass
-        
+    # Crear y mostrar la ventana de carga (Splash Tkinter)
+    ruta_splash = obtener_ruta_recurso(os.path.join("assets", "splash.png"))
+    splash = SplashWindow(root, ruta_splash)
+    
+    # Cerrar el splash screen nativo de PyInstaller ya que tenemos el de Tkinter visible
+    if _splash_disponible:
+        try:
+            pyi_splash.close()
+        except Exception:
+            pass
+            
+    # Bucle de carga y actualización de la barra
+    def ejecutar_carga():
+        try:
+            # Cargar módulos y dependencias de forma secuencial
+            cargar_modulos_y_dependencias(progress_callback=splash.update_status)
+            
+            # Carga completa: destruir splash e iniciar la ventana principal de la app
+            splash.destroy()
+            app = CapturaApp(root)
+            root.deiconify() # Mostrar ventana principal
+        except Exception as err:
+            messagebox.showerror("Error de Inicialización", f"Error al cargar la aplicación:\n{err}")
+            root.destroy()
+            
+    # Lanzar la carga usando after para que la interfaz del splash tenga tiempo de dibujarse
+    root.after(100, ejecutar_carga)
     root.mainloop()
