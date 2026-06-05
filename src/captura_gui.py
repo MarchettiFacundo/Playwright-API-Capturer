@@ -26,7 +26,7 @@ import json
 import glob
 import subprocess
 
-VERSION_LOCAL = "1.1.4"
+VERSION_LOCAL = "1.1.5"
 
 def is_dir_writable(path):
     try:
@@ -641,7 +641,8 @@ JS_SCRIPT = r"""
 # Definición del Hilo de Captura de Playwright
 class PlaywrightCaptureThread(threading.Thread):
     def __init__(self, url, output_queue, video_dir="output_videos", trace_file="trace.zip", log_file="debug_playwright.log", 
-                 modo="APIs de Red (HTTP)", navegador="Chromium", viewport_width=1280, viewport_height=720, ignore_ssl_errors=True):
+                 modo="APIs de Red (HTTP)", navegador="Chromium", viewport_width=1280, viewport_height=720, ignore_ssl_errors=True,
+                 headless=False, record_video=True, record_trace=True, timeout=30, user_agent=""):
         super().__init__()
         self.url = url
         self.output_queue = output_queue
@@ -653,6 +654,11 @@ class PlaywrightCaptureThread(threading.Thread):
         self.ignore_ssl_errors = ignore_ssl_errors
         self.modo = modo
         self.navegador = navegador
+        self.headless = headless
+        self.record_video = record_video
+        self.record_trace = record_trace
+        self.timeout = timeout
+        self.user_agent = user_agent
         self.browser = None
         self.context = None
         self.playwright = None
@@ -680,24 +686,34 @@ class PlaywrightCaptureThread(threading.Thread):
             self.output_queue.put(("status", "Iniciando Playwright..."))
             self.playwright = await async_playwright().start()
             
-            # Lanzamos el motor de navegador seleccionado
+            # Lanzamos el motor de navegador seleccionado (headless configurable)
             if self.navegador == "Firefox":
-                self.browser = await self.playwright.firefox.launch(headless=False)
+                self.browser = await self.playwright.firefox.launch(headless=self.headless)
             elif self.navegador == "WebKit":
-                self.browser = await self.playwright.webkit.launch(headless=False)
+                self.browser = await self.playwright.webkit.launch(headless=self.headless)
             else:
-                self.browser = await self.playwright.chromium.launch(headless=False)
+                self.browser = await self.playwright.chromium.launch(headless=self.headless)
             
-            # Creamos el contexto con grabación de video y configuraciones personalizadas
-            self.context = await self.browser.new_context(
-                ignore_https_errors=self.ignore_ssl_errors,
-                viewport={"width": self.viewport_width, "height": self.viewport_height},
-                record_video_dir=self.video_dir,
-                record_video_size={"width": self.viewport_width, "height": self.viewport_height}
-            )
+            # Creamos el contexto de manera dinámica según las opciones del usuario
+            context_args = {
+                "ignore_https_errors": self.ignore_ssl_errors,
+                "viewport": {"width": self.viewport_width, "height": self.viewport_height}
+            }
+            if self.record_video:
+                context_args["record_video_dir"] = self.video_dir
+                context_args["record_video_size"] = {"width": self.viewport_width, "height": self.viewport_height}
+            if self.user_agent and self.user_agent.strip():
+                context_args["user_agent"] = self.user_agent.strip()
+                
+            self.context = await self.browser.new_context(**context_args)
             
-            # Iniciamos el tracing de Playwright
-            await self.context.tracing.start(screenshots=True, snapshots=True, sources=True)
+            # Configurar el timeout global si se especificó
+            if self.timeout > 0:
+                self.context.set_default_timeout(self.timeout * 1000)
+            
+            # Iniciamos el tracing de Playwright condicionalmente
+            if self.record_trace:
+                await self.context.tracing.start(screenshots=True, snapshots=True, sources=True)
 
             if self.modo == "APIs de Red (HTTP)":
                 async def interceptar_respuesta(response):
@@ -938,7 +954,7 @@ class PlaywrightCaptureThread(threading.Thread):
     async def cerrar_todo_async(self):
         self.output_queue.put(("status", "Guardando traza y cerrando navegador..."))
         try:
-            if self.context:
+            if self.context and self.record_trace:
                 await self.context.tracing.stop(path=self.trace_file)
         except Exception as e:
             print(f"[WARN] Error guardando traza: {e}")
@@ -995,6 +1011,12 @@ class CapturaApp:
         self.config_width = tk.IntVar(value=1280)
         self.config_height = tk.IntVar(value=720)
         self.config_ignore_ssl = tk.BooleanVar(value=True)
+        self.config_headless = tk.BooleanVar(value=False)
+        self.config_record_video = tk.BooleanVar(value=True)
+        self.config_record_trace = tk.BooleanVar(value=True)
+        self.config_timeout = tk.IntVar(value=30)
+        self.config_user_agent = tk.StringVar(value="")
+        self.config_output_dir = tk.StringVar(value=self.output_base_dir)
         
         self.configurar_estilos()
         self.crear_widgets()
@@ -1333,6 +1355,14 @@ class CapturaApp:
         self.btn_pause.config(text="⏸️ Pausar")
         self.btn_stop.state(["!disabled"])
 
+        # Definir dinámicamente las rutas de guardado de los outputs
+        base_dir = self.config_output_dir.get().strip()
+        if not base_dir:
+            base_dir = self.output_base_dir
+        self.video_dir = os.path.join(base_dir, "output_videos")
+        self.trace_file = os.path.join(base_dir, "trace.zip")
+        self.log_file = os.path.join(base_dir, "debug_playwright.log")
+
         self.capture_thread = PlaywrightCaptureThread(
             url=url, 
             output_queue=self.queue,
@@ -1343,7 +1373,12 @@ class CapturaApp:
             navegador=self.combo_navegador.get(),
             viewport_width=self.config_width.get(),
             viewport_height=self.config_height.get(),
-            ignore_ssl_errors=self.config_ignore_ssl.get()
+            ignore_ssl_errors=self.config_ignore_ssl.get(),
+            headless=self.config_headless.get(),
+            record_video=self.config_record_video.get(),
+            record_trace=self.config_record_trace.get(),
+            timeout=self.config_timeout.get(),
+            user_agent=self.config_user_agent.get()
         )
         self.capture_thread.start()
 
@@ -2057,8 +2092,25 @@ class CapturaApp:
             from playwright._impl._driver import compute_driver_executable
             driver_exec = compute_driver_executable()
             
-            # Usar la ruta absoluta nativa de Windows para evitar corrupciones de URL en Node.js/Playwright
-            trace_path = os.path.abspath(self.trace_file)
+            # Obtener la ruta corta de Windows (Short Path) para evitar errores de espacios en Node.js/Playwright
+            def obtener_ruta_corta(long_path):
+                if os.name != 'nt':
+                    return long_path
+                try:
+                    import ctypes
+                    from ctypes import wintypes
+                    GetShortPathNameW = ctypes.windll.kernel32.GetShortPathNameW
+                    GetShortPathNameW.argtypes = [wintypes.LPCWSTR, wintypes.LPWSTR, wintypes.DWORD]
+                    GetShortPathNameW.restype = wintypes.DWORD
+                    buf = ctypes.create_unicode_buffer(wintypes.MAX_PATH)
+                    result = GetShortPathNameW(long_path, buf, wintypes.MAX_PATH)
+                    if 0 < result < wintypes.MAX_PATH:
+                        return buf.value
+                except Exception:
+                    pass
+                return long_path
+
+            trace_path = obtener_ruta_corta(os.path.abspath(self.trace_file))
             
             if isinstance(driver_exec, (list, tuple)):
                 cmd = list(driver_exec) + ["show-trace", trace_path]
@@ -2076,8 +2128,8 @@ class CapturaApp:
 
     def abrir_configuracion(self):
         config_win = tk.Toplevel(self.root)
-        config_win.title("Configuración de Captura")
-        config_win.geometry("400x380")
+        config_win.title("Configuración Avanzada")
+        config_win.geometry("520x630")
         config_win.resizable(False, False)
         config_win.configure(bg=self.color_bg)
         config_win.transient(self.root)
@@ -2091,39 +2143,89 @@ class CapturaApp:
         y = self.root.winfo_y() + (self.root.winfo_height() - h) // 2
         config_win.geometry(f"+{x}+{y}")
         
-        lbl_titulo = ttk.Label(config_win, text="⚙️ CONFIGURACIÓN", style="Header.TLabel", padding=15)
+        lbl_titulo = ttk.Label(config_win, text="⚙️ CONFIGURACIÓN AVANZADA", style="Header.TLabel", padding=15)
         lbl_titulo.pack(anchor="w")
-        
-        # Opciones Frame
-        opts_frame = ttk.LabelFrame(config_win, text="Parámetros de Captura", padding=15)
-        opts_frame.pack(fill="x", padx=15, pady=5)
-        
-        chk_ssl = ttk.Checkbutton(opts_frame, text="Ignorar errores de SSL / HTTPS", variable=self.config_ignore_ssl)
-        chk_ssl.grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 10))
-        
-        lbl_w = ttk.Label(opts_frame, text="Ancho Viewport (px):")
-        lbl_w.grid(row=1, column=0, sticky="w", pady=5)
-        entry_w = ttk.Entry(opts_frame, textvariable=self.config_width, width=10)
-        entry_w.grid(row=1, column=1, sticky="w", pady=5, padx=5)
-        
-        lbl_h = ttk.Label(opts_frame, text="Alto Viewport (px):")
-        lbl_h.grid(row=2, column=0, sticky="w", pady=5)
-        entry_h = ttk.Entry(opts_frame, textvariable=self.config_height, width=10)
-        entry_h.grid(row=2, column=1, sticky="w", pady=5, padx=5)
-        
-        # Versión e Info Frame
-        ver_frame = ttk.LabelFrame(config_win, text="Información de la Aplicación", padding=15)
-        ver_frame.pack(fill="x", padx=15, pady=10)
-        
-        lbl_ver = ttk.Label(ver_frame, text=f"Versión Actual: v{VERSION_LOCAL}", font=("Segoe UI", 10, "bold"))
-        lbl_ver.pack(anchor="w", pady=(0, 5))
-        
-        btn_chk_update = ttk.Button(ver_frame, text="🔄 Buscar Actualizaciones", command=lambda: verificar_actualizaciones(self, manual=True))
-        btn_chk_update.pack(anchor="w", pady=5)
-        
+
+        # Contenedor con Scroll/Canvas si fuera necesario, pero cabe todo en 630px si ordenamos bien
+        main_frame = ttk.Frame(config_win, style="TFrame")
+        main_frame.pack(fill="both", expand=True, padx=15, pady=(0, 10))
+
+        # 1. Grupo: Motor y Navegación
+        nav_frame = ttk.LabelFrame(main_frame, text="Parámetros de Navegación", padding=10)
+        nav_frame.pack(fill="x", pady=5)
+
+        chk_ssl = ttk.Checkbutton(nav_frame, text="Ignorar errores de SSL / HTTPS", variable=self.config_ignore_ssl)
+        chk_ssl.grid(row=0, column=0, columnspan=2, sticky="w", pady=2)
+
+        chk_headless = ttk.Checkbutton(nav_frame, text="Ejecutar en segundo plano (Headless)", variable=self.config_headless)
+        chk_headless.grid(row=0, column=2, columnspan=2, sticky="w", pady=2)
+
+        lbl_w = ttk.Label(nav_frame, text="Viewport Ancho:")
+        lbl_w.grid(row=1, column=0, sticky="w", pady=6, padx=(0, 5))
+        entry_w = ttk.Entry(nav_frame, textvariable=self.config_width, width=8, font=("Segoe UI", 9))
+        entry_w.grid(row=1, column=1, sticky="w", pady=6)
+
+        lbl_h = ttk.Label(nav_frame, text="Viewport Alto:")
+        lbl_h.grid(row=1, column=2, sticky="w", pady=6, padx=(10, 5))
+        entry_h = ttk.Entry(nav_frame, textvariable=self.config_height, width=8, font=("Segoe UI", 9))
+        entry_h.grid(row=1, column=3, sticky="w", pady=6)
+
+        # 2. Grupo: Salidas y Archivos
+        out_frame = ttk.LabelFrame(main_frame, text="Grabación y Diagnóstico", padding=10)
+        out_frame.pack(fill="x", pady=5)
+
+        chk_video = ttk.Checkbutton(out_frame, text="Grabar video de sesión", variable=self.config_record_video)
+        chk_video.grid(row=0, column=0, sticky="w", pady=2)
+
+        chk_trace = ttk.Checkbutton(out_frame, text="Generar traza de Playwright", variable=self.config_record_trace)
+        chk_trace.grid(row=0, column=1, sticky="w", pady=2, padx=(10, 0))
+
+        lbl_timeout = ttk.Label(out_frame, text="Timeout global (seg):")
+        lbl_timeout.grid(row=1, column=0, sticky="w", pady=6, padx=(0, 5))
+        entry_timeout = ttk.Entry(out_frame, textvariable=self.config_timeout, width=8, font=("Segoe UI", 9))
+        entry_timeout.grid(row=1, column=1, sticky="w", pady=6)
+
+        # 3. Grupo: Carpeta de Almacenamiento
+        dir_frame = ttk.LabelFrame(main_frame, text="Carpeta de Almacenamiento", padding=10)
+        dir_frame.pack(fill="x", pady=5)
+
+        entry_dir = ttk.Entry(dir_frame, textvariable=self.config_output_dir, font=("Segoe UI", 9))
+        entry_dir.grid(row=0, column=0, sticky="ew", pady=5, padx=(0, 5))
+        dir_frame.columnconfigure(0, weight=1)
+
+        def examinar_carpeta():
+            from tkinter import filedialog
+            inicial = self.config_output_dir.get().strip()
+            if not inicial or not os.path.exists(inicial):
+                inicial = self.output_base_dir
+            carpeta = filedialog.askdirectory(initialdir=inicial, parent=config_win, title="Seleccionar Carpeta de Destino")
+            if carpeta:
+                self.config_output_dir.set(os.path.normpath(carpeta))
+
+        btn_browse = ttk.Button(dir_frame, text="📂 Examinar...", command=examinar_carpeta)
+        btn_browse.grid(row=0, column=1, sticky="w", pady=5)
+
+        # 4. Grupo: User-Agent Personalizado
+        ua_frame = ttk.LabelFrame(main_frame, text="User-Agent Personalizado (Opcional)", padding=10)
+        ua_frame.pack(fill="x", pady=5)
+
+        entry_ua = ttk.Entry(ua_frame, textvariable=self.config_user_agent, font=("Segoe UI", 9))
+        entry_ua.pack(fill="x", pady=2)
+
+        # 5. Grupo: Info de App e Instalación
+        info_frame = ttk.LabelFrame(main_frame, text="Aplicación y Actualizaciones", padding=10)
+        info_frame.pack(fill="x", pady=5)
+        info_frame.columnconfigure(0, weight=1)
+
+        lbl_ver = ttk.Label(info_frame, text=f"Versión Actual: v{VERSION_LOCAL}", font=("Segoe UI", 9, "bold"))
+        lbl_ver.grid(row=0, column=0, sticky="w", pady=2)
+
+        btn_chk_update = ttk.Button(info_frame, text="🔄 Buscar Actualizaciones", command=lambda: verificar_actualizaciones(self, manual=True))
+        btn_chk_update.grid(row=0, column=1, sticky="e", pady=2)
+
         # Botón Guardar
         btn_save = ttk.Button(config_win, text="Guardar y Cerrar", style="Accent.TButton", command=config_win.destroy)
-        btn_save.pack(anchor="e", padx=15, pady=15)
+        btn_save.pack(anchor="e", padx=15, pady=(0, 15))
 
 
 if __name__ == "__main__":
