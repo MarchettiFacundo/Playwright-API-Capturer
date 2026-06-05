@@ -1,0 +1,33 @@
+# Python compiled files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# PyInstaller / Compilation outputs
+build/
+dist/
+*.spec
+
+# Playwright generated files & logs
+output_videos/
+trace.zip
+trace_claro.zip
+captura_inicio.png
+captura_error.png
+captura_inicio_claro.png
+captura_error_claro.png
+captura_final.png
+capturas_api.jsonl
+selectores_capturados.json
+reporte_selectores.txt
+request_generado*.py
+flujo_unificado.py
+automatizacion_dom.py
+
+# Local environments / IDEs
+.vscode/
+.idea/
+.venv/
+venv/
+env/
