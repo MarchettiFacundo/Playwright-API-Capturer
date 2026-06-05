@@ -26,7 +26,7 @@ import json
 import glob
 import subprocess
 
-VERSION_LOCAL = "1.1.7"
+VERSION_LOCAL = "1.1.8"
 
 def is_dir_writable(path):
     try:
@@ -2082,9 +2082,10 @@ class CapturaApp:
             messagebox.showerror("Error", f"No se pudo abrir el archivo de video: {e}")
 
     def abrir_trace(self):
-        if not os.path.exists(self.trace_file):
-            messagebox.showinfo("Trace Viewer", f"No se encontró el archivo de traza '{self.trace_file}'. Realice una captura primero.")
-            return
+        # Determinar el directorio donde se guardan las trazas
+        dir_trazas = self.config_output_dir.get().strip()
+        if not dir_trazas or not os.path.exists(dir_trazas):
+            dir_trazas = self.output_base_dir
 
         try:
             self.lbl_status.config(text="Abriendo visor de trazas (Playwright)...")
@@ -2092,30 +2093,11 @@ class CapturaApp:
             from playwright._impl._driver import compute_driver_executable
             driver_exec = compute_driver_executable()
             
-            # Obtener la ruta corta de Windows (Short Path) para evitar errores de espacios en Node.js/Playwright
-            def obtener_ruta_corta(long_path):
-                if os.name != 'nt':
-                    return long_path
-                try:
-                    import ctypes
-                    from ctypes import wintypes
-                    GetShortPathNameW = ctypes.windll.kernel32.GetShortPathNameW
-                    GetShortPathNameW.argtypes = [wintypes.LPCWSTR, wintypes.LPWSTR, wintypes.DWORD]
-                    GetShortPathNameW.restype = wintypes.DWORD
-                    buf = ctypes.create_unicode_buffer(wintypes.MAX_PATH)
-                    result = GetShortPathNameW(long_path, buf, wintypes.MAX_PATH)
-                    if 0 < result < wintypes.MAX_PATH:
-                        return buf.value
-                except Exception:
-                    pass
-                return long_path
-
-            trace_path = obtener_ruta_corta(os.path.abspath(self.trace_file))
-            
+            # Lanzamos el comando show-trace sin ruta para abrir el visor limpio y sin errores de red/firewall
             if isinstance(driver_exec, (list, tuple)):
-                cmd = list(driver_exec) + ["show-trace", trace_path]
+                cmd = list(driver_exec) + ["show-trace"]
             else:
-                cmd = [driver_exec, "show-trace", trace_path]
+                cmd = [driver_exec, "show-trace"]
             
             subprocess.Popen(
                 cmd, 
@@ -2124,12 +2106,12 @@ class CapturaApp:
                 stderr=subprocess.DEVNULL
             )
             
-            # Informar al usuario en la barra de estado por si hay restricciones de red / firewall local
-            self.lbl_status.config(text="Visor abierto. Si tu Firewall/Proxy bloquea la carga, arrastra el trace.zip a la ventana.")
+            # Informar al usuario en la barra de estado
+            self.lbl_status.config(text="Visor abierto. Arrastra el archivo trace.zip desde la carpeta al navegador.")
             
-            # Abrir la carpeta contenedora en el explorador para facilitar el arrastre (drag-and-drop) al usuario
+            # Abrir automáticamente la carpeta contenedora en el explorador para facilitar el drag-and-drop
             try:
-                os.startfile(os.path.dirname(os.path.abspath(self.trace_file)))
+                os.startfile(dir_trazas)
             except Exception:
                 pass
         except Exception as e:
