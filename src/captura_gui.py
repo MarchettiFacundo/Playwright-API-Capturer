@@ -26,7 +26,7 @@ import json
 import glob
 import subprocess
 
-VERSION_LOCAL = "1.0"
+VERSION_LOCAL = "1.1.0"
 
 def is_dir_writable(path):
     try:
@@ -50,7 +50,7 @@ def get_documents_folder():
     except Exception:
         return os.path.join(os.path.expanduser("~"), "Documents")
 
-def verificar_actualizaciones(app_instance):
+def verificar_actualizaciones(app_instance, manual=False):
     def check():
         import urllib.request
         import json
@@ -75,8 +75,24 @@ def verificar_actualizaciones(app_instance):
                         
                     if v_remota_parts > v_local_parts:
                         app_instance.root.after(0, lambda: notificar_actualizacion(version_remota, url_descarga))
-        except Exception:
-            pass
+                    else:
+                        if manual:
+                            app_instance.root.after(0, lambda: messagebox.showinfo(
+                                "Sin actualizaciones", 
+                                f"Tu aplicación está actualizada a la última versión (v{VERSION_LOCAL})."
+                            ))
+                else:
+                    if manual:
+                        app_instance.root.after(0, lambda: messagebox.showerror(
+                            "Error", 
+                            "No se pudo verificar el archivo de versión remota."
+                        ))
+        except Exception as e:
+            if manual:
+                app_instance.root.after(0, lambda: messagebox.showerror(
+                    "Error de Conexión", 
+                    f"No se pudo conectar al servidor de actualizaciones:\n{e}"
+                ))
 
     def notificar_actualizacion(v_remota, url):
         if messagebox.askyesno(
@@ -493,13 +509,17 @@ JS_SCRIPT = r"""
 
 # Definición del Hilo de Captura de Playwright
 class PlaywrightCaptureThread(threading.Thread):
-    def __init__(self, url, output_queue, video_dir="output_videos", trace_file="trace.zip", log_file="debug_playwright.log", modo="APIs de Red (HTTP)", navegador="Chromium"):
+    def __init__(self, url, output_queue, video_dir="output_videos", trace_file="trace.zip", log_file="debug_playwright.log", 
+                 modo="APIs de Red (HTTP)", navegador="Chromium", viewport_width=1280, viewport_height=720, ignore_ssl_errors=True):
         super().__init__()
         self.url = url
         self.output_queue = output_queue
         self.video_dir = video_dir
         self.trace_file = trace_file
         self.log_file = log_file
+        self.viewport_width = viewport_width
+        self.viewport_height = viewport_height
+        self.ignore_ssl_errors = ignore_ssl_errors
         self.modo = modo
         self.navegador = navegador
         self.browser = None
@@ -537,11 +557,12 @@ class PlaywrightCaptureThread(threading.Thread):
             else:
                 self.browser = await self.playwright.chromium.launch(headless=False)
             
-            # Creamos el contexto con grabación de video
+            # Creamos el contexto con grabación de video y configuraciones personalizadas
             self.context = await self.browser.new_context(
-                ignore_https_errors=True,
+                ignore_https_errors=self.ignore_ssl_errors,
+                viewport={"width": self.viewport_width, "height": self.viewport_height},
                 record_video_dir=self.video_dir,
-                record_video_size={"width": 1280, "height": 720}
+                record_video_size={"width": self.viewport_width, "height": self.viewport_height}
             )
             
             # Iniciamos el tracing de Playwright
@@ -839,6 +860,11 @@ class CapturaApp:
         self.trace_file = os.path.join(self.output_base_dir, "trace.zip")
         self.log_file = os.path.join(self.output_base_dir, "debug_playwright.log")
         
+        # Variables de Configuración de Navegador (Playwright)
+        self.config_width = tk.IntVar(value=1280)
+        self.config_height = tk.IntVar(value=720)
+        self.config_ignore_ssl = tk.BooleanVar(value=True)
+        
         self.configurar_estilos()
         self.crear_widgets()
         
@@ -973,6 +999,9 @@ class CapturaApp:
         self.btn_stop = ttk.Button(buttons_subframe, text="🛑 Detener Captura", style="Stop.TButton", command=self.detener_captura)
         self.btn_stop.pack(side=tk.LEFT, padx=5)
         self.btn_stop.state(["disabled"])
+        
+        self.btn_config = ttk.Button(buttons_subframe, text="⚙️ Configuración", command=self.abrir_configuracion)
+        self.btn_config.pack(side=tk.RIGHT, padx=(5, 0))
 
         # Subpanel de la Tabla
         table_frame = ttk.Frame(left_panel, style="TFrame")
@@ -1181,7 +1210,10 @@ class CapturaApp:
             trace_file=self.trace_file,
             log_file=self.log_file,
             modo=self.combo_modo.get(),
-            navegador=self.combo_navegador.get()
+            navegador=self.combo_navegador.get(),
+            viewport_width=self.config_width.get(),
+            viewport_height=self.config_height.get(),
+            ignore_ssl_errors=self.config_ignore_ssl.get()
         )
         self.capture_thread.start()
 
@@ -1894,10 +1926,14 @@ class CapturaApp:
             
             from playwright._impl._driver import compute_driver_executable
             driver_exec = compute_driver_executable()
+            
+            # Convertir ruta absoluta a barras normales para evitar errores de URL-encoding en Windows
+            trace_path = os.path.abspath(self.trace_file).replace('\\', '/')
+            
             if isinstance(driver_exec, (list, tuple)):
-                cmd = list(driver_exec) + ["show-trace", self.trace_file]
+                cmd = list(driver_exec) + ["show-trace", trace_path]
             else:
-                cmd = [driver_exec, "show-trace", self.trace_file]
+                cmd = [driver_exec, "show-trace", trace_path]
             
             subprocess.Popen(
                 cmd, 
@@ -1907,6 +1943,57 @@ class CapturaApp:
             )
         except Exception as e:
             messagebox.showerror("Error", f"No se pudo abrir el visor de trazas: {e}")
+
+    def abrir_configuracion(self):
+        config_win = tk.Toplevel(self.root)
+        config_win.title("Configuración de Captura")
+        config_win.geometry("400x380")
+        config_win.resizable(False, False)
+        config_win.configure(bg=self.color_bg)
+        config_win.transient(self.root)
+        config_win.grab_set()
+        
+        # Centrar ventana
+        config_win.update_idletasks()
+        w = config_win.winfo_width()
+        h = config_win.winfo_height()
+        x = self.root.winfo_x() + (self.root.winfo_width() - w) // 2
+        y = self.root.winfo_y() + (self.root.winfo_height() - h) // 2
+        config_win.geometry(f"+{x}+{y}")
+        
+        lbl_titulo = ttk.Label(config_win, text="⚙️ CONFIGURACIÓN", style="Header.TLabel", padding=15)
+        lbl_titulo.pack(anchor="w")
+        
+        # Opciones Frame
+        opts_frame = ttk.LabelFrame(config_win, text="Parámetros de Captura", padding=15)
+        opts_frame.pack(fill="x", padx=15, pady=5)
+        
+        chk_ssl = ttk.Checkbutton(opts_frame, text="Ignorar errores de SSL / HTTPS", variable=self.config_ignore_ssl)
+        chk_ssl.grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 10))
+        
+        lbl_w = ttk.Label(opts_frame, text="Ancho Viewport (px):")
+        lbl_w.grid(row=1, column=0, sticky="w", pady=5)
+        entry_w = ttk.Entry(opts_frame, textvariable=self.config_width, width=10)
+        entry_w.grid(row=1, column=1, sticky="w", pady=5, padx=5)
+        
+        lbl_h = ttk.Label(opts_frame, text="Alto Viewport (px):")
+        lbl_h.grid(row=2, column=0, sticky="w", pady=5)
+        entry_h = ttk.Entry(opts_frame, textvariable=self.config_height, width=10)
+        entry_h.grid(row=2, column=1, sticky="w", pady=5, padx=5)
+        
+        # Versión e Info Frame
+        ver_frame = ttk.LabelFrame(config_win, text="Información de la Aplicación", padding=15)
+        ver_frame.pack(fill="x", padx=15, pady=10)
+        
+        lbl_ver = ttk.Label(ver_frame, text=f"Versión Actual: v{VERSION_LOCAL}", font=("Segoe UI", 10, "bold"))
+        lbl_ver.pack(anchor="w", pady=(0, 5))
+        
+        btn_chk_update = ttk.Button(ver_frame, text="🔄 Buscar Actualizaciones", command=lambda: verificar_actualizaciones(self, manual=True))
+        btn_chk_update.pack(anchor="w", pady=5)
+        
+        # Botón Guardar
+        btn_save = ttk.Button(config_win, text="Guardar y Cerrar", style="Accent.TButton", command=config_win.destroy)
+        btn_save.pack(anchor="e", padx=15, pady=15)
 
 
 if __name__ == "__main__":
