@@ -5,7 +5,7 @@
 ; Identificador único de la aplicación (GUID)
 AppId={{5D0B26D1-C998-4A3C-93E1-EFE5C13FF15A}
 AppName=Playwright API Capturer
-AppVersion=1.1.5
+AppVersion=1.1.6
 AppPublisher=RPA Tools
 AppPublisherURL=https://bitbucket.org/
 AppSupportURL=https://bitbucket.org/
@@ -22,6 +22,8 @@ SolidCompression=yes
 WizardStyle=modern
 ; Requiere elevación de privilegios de administrador para instalar en C:\Program Files
 PrivilegesRequired=admin
+CloseApplications=yes
+RestartApplications=no
 
 [Languages]
 Name: "spanish"; MessagesFile: "compiler:Languages\Spanish.isl"

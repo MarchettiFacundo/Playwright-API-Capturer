@@ -26,7 +26,7 @@ import json
 import glob
 import subprocess
 
-VERSION_LOCAL = "1.1.5"
+VERSION_LOCAL = "1.1.6"
 
 def is_dir_writable(path):
     try:
