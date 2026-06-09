@@ -190,6 +190,7 @@ def descargar_y_ejecutar_instalador(app_instance, url_installer, version_nueva):
                 temp_dir = tempfile.gettempdir()
                 temp_file_path = os.path.join(temp_dir, f"Playwright_API_Capturer_Setup_{version_nueva}.exe")
                 
+                ultimo_porcentaje = -1
                 with open(temp_file_path, "wb") as f_out:
                     chunk_size = 16384 # 16KB
                     while True:
@@ -203,7 +204,9 @@ def descargar_y_ejecutar_instalador(app_instance, url_installer, version_nueva):
                         
                         if total_size > 0:
                             percent = int(100 * bytes_descargados / total_size)
-                            download_win.after(0, lambda p=percent: actualizar_progreso(p))
+                            if percent != ultimo_porcentaje:
+                                ultimo_porcentaje = percent
+                                download_win.after(0, lambda p=percent: actualizar_progreso(p))
                             
                 if not cancelled[0]:
                     download_win.after(0, lambda: finalizar_y_ejecutar(temp_file_path))
@@ -215,7 +218,6 @@ def descargar_y_ejecutar_instalador(app_instance, url_installer, version_nueva):
     def actualizar_progreso(percent):
         progress["value"] = percent
         lbl_info.config(text=f"Descargando actualización v{version_nueva}...\nProgreso: {percent}%")
-        download_win.update()
         
     def finalizar_y_ejecutar(file_path):
         download_win.destroy()
