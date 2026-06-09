@@ -9,6 +9,9 @@ generar_script_python = None
 generar_script_automatizacion_dom = None
 generar_lista_selectores_json = None
 generar_reporte_selectores_txt = None
+generar_nombre_campo_auto = None
+generar_script_scraping = None
+generar_script_scraping_bs4 = None
 
 # 1. Intentar configurar una variable para saber si el splash nativo de PyInstaller estuvo activo
 _splash_disponible = False
@@ -26,7 +29,7 @@ import json
 import glob
 import subprocess
 
-VERSION_LOCAL = "1.1.8"
+VERSION_LOCAL = "1.1.9"
 
 def is_dir_writable(path):
     try:
@@ -300,6 +303,7 @@ def cargar_modulos_y_dependencias(progress_callback=None):
     global async_playwright, limpiar_headers, generar_script_unificado
     global generar_script_python, generar_script_automatizacion_dom
     global generar_lista_selectores_json, generar_reporte_selectores_txt
+    global generar_nombre_campo_auto, generar_script_scraping, generar_script_scraping_bs4
     
     import time
     
@@ -333,7 +337,10 @@ def cargar_modulos_y_dependencias(progress_callback=None):
             limpiar_headers as l_headers, 
             generar_script_automatizacion_dom as g_dom, 
             generar_lista_selectores_json as g_json, 
-            generar_reporte_selectores_txt as g_txt
+            generar_reporte_selectores_txt as g_txt,
+            generar_nombre_campo_auto as g_nombre_auto,
+            generar_script_scraping as g_scraping,
+            generar_script_scraping_bs4 as g_scraping_bs4
         )
         limpiar_headers = l_headers
         generar_script_unificado = g_unificado
@@ -341,6 +348,9 @@ def cargar_modulos_y_dependencias(progress_callback=None):
         generar_script_automatizacion_dom = g_dom
         generar_lista_selectores_json = g_json
         generar_reporte_selectores_txt = g_txt
+        generar_nombre_campo_auto = g_nombre_auto
+        generar_script_scraping = g_scraping
+        generar_script_scraping_bs4 = g_scraping_bs4
     except ImportError:
         def l_headers(headers):
             return {k: v for k, v in headers.items() if k.lower() not in ['host', 'connection']}
@@ -354,6 +364,12 @@ def cargar_modulos_y_dependencias(progress_callback=None):
             pass
         def g_txt(acciones, nombre_archivo):
             pass
+        def g_nombre_auto(accion):
+            return f"campo_{(accion.get('tagName') or 'el').lower()}"
+        def g_scraping(campos, url, config, nombre_archivo="scraper.py", parametrizar=False):
+            pass
+        def g_scraping_bs4(campos, url, config, nombre_archivo="scraper_bs4.py"):
+            pass
             
         limpiar_headers = l_headers
         generar_script_unificado = g_unificado
@@ -361,6 +377,9 @@ def cargar_modulos_y_dependencias(progress_callback=None):
         generar_script_automatizacion_dom = g_dom
         generar_lista_selectores_json = g_json
         generar_reporte_selectores_txt = g_txt
+        generar_nombre_campo_auto = g_nombre_auto
+        generar_script_scraping = g_scraping
+        generar_script_scraping_bs4 = g_scraping_bs4
         
     if progress_callback:
         progress_callback(95, "Finalizando preparación de GUI...")
@@ -839,12 +858,70 @@ class PlaywrightCaptureThread(threading.Thread):
                                 f.write(f"Callback registrar_accion: {datos.get('tipo_accion')} {datos.get('descriptor_legible')}\n")
                         except Exception:
                             pass
+
+                        # Marcar la fase (setup vs extract) para el modo Scraper
+                        if "Scraper" in self.modo:
+                            tipo_accion = datos.get("tipo_accion", "")
+                            datos["fase_scraper"] = "extract" if tipo_accion == "extract" else "setup"
+
                         self.output_queue.put(("accion_dom", datos))
                     except Exception as err:
                         print(f"[WARN] Error parseando JSON de acción DOM: {err}")
-                
+
+
                 await self.context.expose_binding("registrarAccionDOM", registrar_accion)
                 await self.context.add_init_script(JS_SCRIPT)
+
+                # En modo Scraper: también interceptar requests POST/PUT para capturar login de red
+                if "Scraper" in self.modo:
+                    async def interceptar_posts_scraper(response):
+                        try:
+                            metodo = response.request.method.upper()
+                            if metodo not in ("POST", "PUT", "PATCH"):
+                                return
+                            url_req = response.url
+                            # Ignorar assets estáticos
+                            ext_ignorar = (".css", ".js", ".png", ".jpg", ".jpeg",
+                                           ".svg", ".woff", ".ico", ".gif", ".map")
+                            if any(url_req.split("?")[0].lower().endswith(e) for e in ext_ignorar):
+                                return
+
+                            datos_post = {
+                                "url": url_req,
+                                "metodo": metodo,
+                                "status": response.status,
+                                "request_body": None,
+                                "respuesta": None,
+                            }
+
+                            # Leer cuerpo del request
+                            try:
+                                post_data = response.request.post_data
+                                if post_data:
+                                    try:
+                                        import json as _json
+                                        datos_post["request_body"] = _json.loads(post_data)
+                                    except Exception:
+                                        datos_post["request_body"] = post_data[:1000]
+                            except Exception:
+                                pass
+
+                            # Leer respuesta
+                            if response.ok:
+                                try:
+                                    ct = (await response.header_value("content-type") or "").lower()
+                                    if "json" in ct:
+                                        datos_post["respuesta"] = await response.json()
+                                    else:
+                                        datos_post["respuesta"] = (await response.text())[:800]
+                                except Exception:
+                                    pass
+
+                            self.output_queue.put(("post_red_scraper", datos_post))
+                        except Exception:
+                            pass
+
+                    self.context.on("response", interceptar_posts_scraper)
 
             page = await self.context.new_page()
             
@@ -856,23 +933,53 @@ class PlaywrightCaptureThread(threading.Thread):
             
             self.output_queue.put(("status", f"Navegando a {self.url}..."))
             
-            if self.modo == "Grabador DOM (Acciones)":
+            # Emitir evento de navegación inicial
+            if self.modo in ("Grabador DOM (Acciones)", "Scraper Visual (DOM)"):
                 nav_data = {
                     "tipo_accion": "navigation",
+                    "fase_scraper": "setup",
                     "tagName": "WINDOW",
                     "descriptor_legible": "Navegación Inicial",
                     "selector_sugerido": "",
                     "valor": self.url,
-                    "id": "",
-                    "name": "",
-                    "className": "",
-                    "type": "",
-                    "placeholder": "",
-                    "xpath": "",
-                    "outerHTML": "",
-                    "seleccionado": True
+                    "id": "", "name": "", "className": "",
+                    "type": "", "placeholder": "",
+                    "xpath": "", "outerHTML": "",
+                    "seleccionado": True, "ruta_iframes": []
                 }
                 self.output_queue.put(("accion_dom", nav_data))
+
+            # En modo Scraper: rastrear cambios de URL (post-login, redirecciones)
+            if "Scraper" in self.modo:
+                self._last_scraper_url = self.url
+
+                def on_frame_navigated(frame):
+                    try:
+                        if frame != page.main_frame:
+                            return
+                        new_url = frame.url or ""
+                        if (new_url
+                                and new_url != "about:blank"
+                                and not new_url.startswith("data:")
+                                and new_url != getattr(self, "_last_scraper_url", "")):
+                            self._last_scraper_url = new_url
+                            nav_ev = {
+                                "tipo_accion": "navigation",
+                                "fase_scraper": "setup",
+                                "tagName": "WINDOW",
+                                "descriptor_legible": f"Navegar a {new_url[:60]}",
+                                "selector_sugerido": "",
+                                "valor": new_url,
+                                "id": "", "name": "", "className": "",
+                                "type": "", "placeholder": "",
+                                "xpath": "", "outerHTML": "",
+                                "seleccionado": True, "ruta_iframes": []
+                            }
+                            self.output_queue.put(("accion_dom", nav_ev))
+                    except Exception:
+                        pass
+
+                page.on("framenavigated", on_frame_navigated)
 
             try:
                 await page.goto(self.url, wait_until="domcontentloaded", timeout=20000)
@@ -1119,7 +1226,7 @@ class CapturaApp:
         lbl_modo = ttk.Label(control_frame, text="Modo:", style="TLabel")
         lbl_modo.grid(row=0, column=0, padx=(0, 5), pady=2, sticky="w")
         
-        self.combo_modo = ttk.Combobox(control_frame, values=["APIs de Red (HTTP)", "Grabador DOM (Acciones)"], state="readonly", width=18, font=("Segoe UI", 9))
+        self.combo_modo = ttk.Combobox(control_frame, values=["APIs de Red (HTTP)", "Grabador DOM (Acciones)", "Scraper Visual (DOM)"], state="readonly", width=22, font=("Segoe UI", 9))
         self.combo_modo.set("APIs de Red (HTTP)")
         self.combo_modo.grid(row=0, column=1, padx=5, pady=2, sticky="w")
         self.combo_modo.bind("<<ComboboxSelected>>", self.on_cambio_modo)
@@ -1288,6 +1395,253 @@ class CapturaApp:
         )
         self.notebook.add(self.txt_response, text="Respuesta")
 
+        # --- Pestaña: Árbol JSON (Opción B) --- visible en modo APIs ---
+        self.frame_arbol_json = ttk.Frame(self.notebook, style="Panel.TFrame")
+        self.notebook.add(self.frame_arbol_json, text="🌳 Árbol JSON")
+        self.frame_arbol_json.columnconfigure(0, weight=1)
+        self.frame_arbol_json.rowconfigure(0, weight=1)
+
+        # -------------------------------------------------------
+        # Pestaña: Red POST (visible solo en modo Scraper)
+        # -------------------------------------------------------
+        self.frame_red_scraper = ttk.Frame(self.notebook, style="Panel.TFrame", padding=6)
+        self.notebook.add(self.frame_red_scraper, text="🌐 Red POST")
+        self.peticiones_red_post = []  # lista de requests POST capturados
+
+        # Treeview de requests POST
+        red_cols = ("metodo", "status", "url_corta")
+        self.tabla_red_post = ttk.Treeview(self.frame_red_scraper, columns=red_cols,
+                                           show="headings", height=6)
+        self.tabla_red_post.heading("metodo", text="Método")
+        self.tabla_red_post.heading("status", text="Status")
+        self.tabla_red_post.heading("url_corta", text="URL")
+        self.tabla_red_post.column("metodo", width=55, anchor="center", stretch=False)
+        self.tabla_red_post.column("status", width=50, anchor="center", stretch=False)
+        self.tabla_red_post.column("url_corta", width=280, anchor="w")
+        scr_red = ttk.Scrollbar(self.frame_red_scraper, orient="vertical",
+                                 command=self.tabla_red_post.yview)
+        self.tabla_red_post.configure(yscrollcommand=scr_red.set)
+        self.tabla_red_post.grid(row=0, column=0, sticky="nsew")
+        scr_red.grid(row=0, column=1, sticky="ns")
+        self.tabla_red_post.bind("<<TreeviewSelect>>", self.on_post_seleccionado)
+
+        # Panel de detalle del request POST
+        det_frame = ttk.LabelFrame(self.frame_red_scraper, text="Detalle del Request", padding=6)
+        det_frame.grid(row=1, column=0, columnspan=2, sticky="nsew", pady=(4, 0))
+
+        self.txt_red_detalle = scrolledtext.ScrolledText(
+            det_frame, height=7, wrap=tk.WORD,
+            font=("Consolas", 8), state=tk.DISABLED)
+        self.txt_red_detalle.pack(fill="both", expand=True)
+
+        btn_auto_login = ttk.Button(
+            det_frame, text="🚀 Autocompletar Login BS4",
+            style="Accent.TButton",
+            command=self.autodetectar_login_bs4)
+        btn_auto_login.pack(pady=(4, 0))
+
+        self.frame_red_scraper.columnconfigure(0, weight=1)
+        self.frame_red_scraper.rowconfigure(0, weight=1)
+        self.frame_red_scraper.rowconfigure(1, weight=1)
+
+        self.style.configure("ArbolJSON.Treeview",
+                              background=self.color_panel,
+                              foreground=self.color_fg,
+                              fieldbackground=self.color_panel,
+                              rowheight=22,
+                              font=("Consolas", 9),
+                              borderwidth=0)
+        self.style.map("ArbolJSON.Treeview",
+                       background=[("selected", self.color_accent)],
+                       foreground=[("selected", "#ffffff")])
+
+        arbol_scroll_y = ttk.Scrollbar(self.frame_arbol_json, orient="vertical")
+        arbol_scroll_x = ttk.Scrollbar(self.frame_arbol_json, orient="horizontal")
+        arbol_scroll_y.grid(row=0, column=1, sticky="ns")
+        arbol_scroll_x.grid(row=1, column=0, sticky="ew")
+
+        self.arbol_json = ttk.Treeview(
+            self.frame_arbol_json,
+            columns=("clave", "tipo", "valor"),
+            show="tree headings",
+            yscrollcommand=arbol_scroll_y.set,
+            xscrollcommand=arbol_scroll_x.set,
+            style="ArbolJSON.Treeview"
+        )
+        self.arbol_json.grid(row=0, column=0, sticky="nsew")
+        arbol_scroll_y.config(command=self.arbol_json.yview)
+        arbol_scroll_x.config(command=self.arbol_json.xview)
+
+        self.arbol_json.heading("#0", text="Ruta")
+        self.arbol_json.heading("clave", text="Clave")
+        self.arbol_json.heading("tipo", text="Tipo")
+        self.arbol_json.heading("valor", text="Valor")
+        self.arbol_json.column("#0", width=160, stretch=True)
+        self.arbol_json.column("clave", width=130, stretch=False)
+        self.arbol_json.column("tipo", width=70, anchor="center", stretch=False)
+        self.arbol_json.column("valor", width=280, stretch=True)
+
+        # --- Pestaña: Config Scraper --- visible en modo Scraper ---
+        self.frame_config_scraper = ttk.Frame(self.notebook, style="Panel.TFrame")
+        self.notebook.add(self.frame_config_scraper, text="⚙️ Config Scraper")
+        self.frame_config_scraper.rowconfigure(0, weight=1)
+        self.frame_config_scraper.columnconfigure(0, weight=1)
+
+        # Canvas + Scrollbar para hacer el panel scrollable
+        _cs_canvas = tk.Canvas(self.frame_config_scraper, highlightthickness=0,
+                               bg=self.color_panel)
+        _cs_scroll = ttk.Scrollbar(self.frame_config_scraper, orient="vertical",
+                                   command=_cs_canvas.yview)
+        _cs_canvas.configure(yscrollcommand=_cs_scroll.set)
+        _cs_canvas.grid(row=0, column=0, sticky="nsew")
+        _cs_scroll.grid(row=0, column=1, sticky="ns")
+
+        # Frame interior que contiene todos los widgets
+        _cs_inner = ttk.Frame(_cs_canvas, style="Panel.TFrame", padding=12)
+        _cs_window = _cs_canvas.create_window((0, 0), window=_cs_inner, anchor="nw")
+
+        def _on_cs_inner_configure(event):
+            _cs_canvas.configure(scrollregion=_cs_canvas.bbox("all"))
+        _cs_inner.bind("<Configure>", _on_cs_inner_configure)
+
+        def _on_cs_canvas_configure(event):
+            _cs_canvas.itemconfig(_cs_window, width=event.width)
+        _cs_canvas.bind("<Configure>", _on_cs_canvas_configure)
+
+        # Scroll con rueda del mouse cuando el cursor está sobre el panel
+        def _on_cs_mousewheel(event):
+            _cs_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+        _cs_inner.bind_all_children = lambda: None  # no-op placeholder
+        _cs_canvas.bind("<Enter>", lambda e: _cs_canvas.bind_all("<MouseWheel>", _on_cs_mousewheel))
+        _cs_canvas.bind("<Leave>", lambda e: _cs_canvas.unbind_all("<MouseWheel>"))
+
+        # Referencia al frame interior para usarlo en _on_motor_cambiado
+        self._cs_inner = _cs_inner
+
+        ttk.Label(_cs_inner, text="🕷️ CONFIGURACIÓN DEL SCRAPER",
+                  style="Header.TLabel").pack(anchor="w", pady=(0, 8))
+
+        # -- Paginación --
+        pag_frame = ttk.LabelFrame(_cs_inner, text="Paginación", padding=8)
+        pag_frame.pack(fill="x", pady=4)
+        pag_frame.columnconfigure(1, weight=1)
+
+        ttk.Label(pag_frame, text="Selector 'Siguiente Página':", style="Panel.TLabel").grid(
+            row=0, column=0, sticky="w", padx=(0, 8), pady=3)
+        self.scraper_selector_paginacion = tk.StringVar(value="")
+        ttk.Entry(pag_frame, textvariable=self.scraper_selector_paginacion,
+                  font=("Segoe UI", 9)).grid(row=0, column=1, sticky="ew", pady=3)
+
+        ttk.Label(pag_frame, text="Máx. páginas (0=sin límite):", style="Panel.TLabel").grid(
+            row=1, column=0, sticky="w", padx=(0, 8), pady=3)
+        self.scraper_max_paginas = tk.IntVar(value=0)
+        ttk.Entry(pag_frame, textvariable=self.scraper_max_paginas,
+                  width=8, font=("Segoe UI", 9)).grid(row=1, column=1, sticky="w", pady=3)
+
+        ttk.Label(pag_frame, text="Delay entre páginas (seg):", style="Panel.TLabel").grid(
+            row=2, column=0, sticky="w", padx=(0, 8), pady=3)
+        self.scraper_delay = tk.DoubleVar(value=1.5)
+        ttk.Entry(pag_frame, textvariable=self.scraper_delay,
+                  width=8, font=("Segoe UI", 9)).grid(row=2, column=1, sticky="w", pady=3)
+
+        # -- Formato de salida --
+        fmt_frame = ttk.LabelFrame(_cs_inner, text="Formatos de Exportación", padding=8)
+        fmt_frame.pack(fill="x", pady=4)
+        self.scraper_fmt_csv = tk.BooleanVar(value=True)
+        self.scraper_fmt_json = tk.BooleanVar(value=True)
+        self.scraper_headless = tk.BooleanVar(value=True)
+        ttk.Checkbutton(fmt_frame, text="Exportar CSV",
+                        variable=self.scraper_fmt_csv).pack(anchor="w", pady=2)
+        ttk.Checkbutton(fmt_frame, text="Exportar JSON",
+                        variable=self.scraper_fmt_json).pack(anchor="w", pady=2)
+        ttk.Checkbutton(fmt_frame, text="Ejecutar en modo Headless (sin ventana)",
+                        variable=self.scraper_headless).pack(anchor="w", pady=2)
+
+        # -- Ayuda --
+        ayuda_frame = ttk.LabelFrame(_cs_inner, text="Instrucciones de Uso", padding=8)
+        ayuda_frame.pack(fill="x", pady=4)
+        ayuda_texto = (
+            "1. Ingresa la URL y presiona '⚡ Iniciar Captura'.\n"
+            "2. En el navegador, los CLICKS, FILLS y NAVEGACIONES\n"
+            "   se graban como pasos de '🔧 Setup' (login, menus).\n"
+            "3. Usa Shift+Clic en elementos para marcarlos como\n"
+            "   '📤 Extraer' (campos de datos).\n"
+            "4. (Opcional) Configura paginación y motor abajo.\n"
+            "5. Presiona '⬇️ Generar Script de Scraping'."
+        )
+        ttk.Label(ayuda_frame, text=ayuda_texto, style="Panel.TLabel",
+                  justify="left", wraplength=260).pack(anchor="w")
+
+        # -- Motor de Extracción --
+        motor_frame = ttk.LabelFrame(_cs_inner, text="Motor de Extracción", padding=8)
+        motor_frame.pack(fill="x", pady=(4, 2))
+
+        self.scraper_motor = tk.StringVar(value="playwright")
+
+        self.radio_playwright = ttk.Radiobutton(
+            motor_frame, text="🎭 Playwright  (JS / Login / Dinámico)",
+            variable=self.scraper_motor, value="playwright")
+        self.radio_playwright.pack(anchor="w", pady=(3, 1))
+        self.radio_playwright.config(command=lambda: self._on_motor_cambiado())
+
+        self.radio_bs4 = ttk.Radiobutton(
+            motor_frame, text="🌿 requests + BS4  (Estático / API)",
+            variable=self.scraper_motor, value="bs4")
+        self.radio_bs4.pack(anchor="w", pady=(1, 3))
+        self.radio_bs4.config(command=lambda: self._on_motor_cambiado())
+
+        self.lbl_motor_aviso = ttk.Label(
+            motor_frame,
+            text="⚠️ BS4 con pasos de Setup: asegurate de desmarcalos o configurar el login BS4.")
+        # No hacemos pack aqui; se muestra/oculta desde _on_motor_cambiado
+
+        # -- Login BS4 (opcional) --
+        self.frame_bs4_login = ttk.LabelFrame(
+            _cs_inner, text="Login BS4 (opcional)", padding=8)
+        # Se muestra solo cuando el motor es BS4
+
+        ttk.Label(self.frame_bs4_login,
+                  text="URL de Login (POST):").grid(row=0, column=0, sticky="w", pady=2, padx=4)
+        self.bs4_login_url = tk.StringVar()
+        ttk.Entry(self.frame_bs4_login, textvariable=self.bs4_login_url,
+                  width=28).grid(row=0, column=1, sticky="ew", pady=2, padx=4)
+
+        ttk.Label(self.frame_bs4_login,
+                  text="Usuario / clave campo:").grid(row=1, column=0, sticky="w", pady=2, padx=4)
+        self.bs4_login_user_field = tk.StringVar(value="username")
+        ttk.Entry(self.frame_bs4_login, textvariable=self.bs4_login_user_field,
+                  width=28).grid(row=1, column=1, sticky="ew", pady=2, padx=4)
+
+        ttk.Label(self.frame_bs4_login,
+                  text="Pass campo:").grid(row=2, column=0, sticky="w", pady=2, padx=4)
+        self.bs4_login_pass_field = tk.StringVar(value="password")
+        ttk.Entry(self.frame_bs4_login, textvariable=self.bs4_login_pass_field,
+                  width=28).grid(row=2, column=1, sticky="ew", pady=2, padx=4)
+
+        ttk.Label(self.frame_bs4_login,
+                  text="Tipo de Auth:").grid(row=3, column=0, sticky="w", pady=2, padx=4)
+        self.bs4_auth_tipo = tk.StringVar(value="form_post")
+        combo_auth = ttk.Combobox(
+            self.frame_bs4_login, textvariable=self.bs4_auth_tipo,
+            values=["form_post", "json_post", "bearer_token", "basic_auth"],
+            state="readonly", width=26)
+        combo_auth.grid(row=3, column=1, sticky="ew", pady=2, padx=4)
+
+        ttk.Label(self.frame_bs4_login,
+                  text="Campo token JSON:").grid(row=4, column=0, sticky="w", pady=2, padx=4)
+        self.bs4_token_field = tk.StringVar(value="token")
+        ttk.Entry(self.frame_bs4_login, textvariable=self.bs4_token_field,
+                  width=28).grid(row=4, column=1, sticky="ew", pady=2, padx=4)
+
+        self.frame_bs4_login.columnconfigure(1, weight=1)
+
+        # Ocultar tabs de scraper y árbol al inicio (modo por defecto = APIs)
+        self.notebook.hide(self.frame_arbol_json)
+        self.notebook.hide(self.frame_config_scraper)
+        self.notebook.hide(self.frame_red_scraper)
+
+
+
     def on_cambio_modo(self, event=None):
         modo = self.combo_modo.get()
         if "APIs" in modo:
@@ -1297,38 +1651,106 @@ class CapturaApp:
             self.tabla.heading("metodo", text="Método")
             self.tabla.heading("status", text="Status")
             self.tabla.heading("url", text="URL")
-            
+
             self.tabla.column("sel", width=45, anchor="center", stretch=False)
             self.tabla.column("idx", width=40, anchor="center", stretch=False)
             self.tabla.column("metodo", width=80, anchor="center", stretch=False)
             self.tabla.column("status", width=60, anchor="center", stretch=False)
             self.tabla.column("url", width=400, anchor="w")
-            
+
             self.notebook.tab(0, text="Headers")
             self.notebook.tab(1, text="Payload (Request)")
             self.notebook.tab(2, text="Respuesta")
-            
+            # Mostrar árbol JSON, ocultar config scraper
+            try:
+                self.notebook.add(self.frame_arbol_json)
+                self.notebook.tab(self.frame_arbol_json, text="🌳 Árbol JSON")
+            except Exception:
+                pass
+            try:
+                self.notebook.hide(self.frame_config_scraper)
+            except Exception:
+                pass
+            try:
+                self.notebook.hide(self.frame_red_scraper)
+            except Exception:
+                pass
+
             self.btn_generar.config(text="⚙️ Generar Flujo Unificado")
-        else:
+
+        elif "Grabador" in modo:
             self.tabla["columns"] = ("sel", "idx", "accion", "elemento", "valor")
             self.tabla.heading("sel", text="Sel")
             self.tabla.heading("idx", text="#")
             self.tabla.heading("accion", text="Acción")
             self.tabla.heading("elemento", text="Elemento")
             self.tabla.heading("valor", text="Texto / Valor")
-            
+
             self.tabla.column("sel", width=45, anchor="center", stretch=False)
             self.tabla.column("idx", width=40, anchor="center", stretch=False)
             self.tabla.column("accion", width=100, anchor="center", stretch=False)
             self.tabla.column("elemento", width=250, anchor="w")
             self.tabla.column("valor", width=350, anchor="w")
-            
+
             self.notebook.tab(0, text="Atributos")
             self.notebook.tab(1, text="Selectores")
             self.notebook.tab(2, text="HTML Externo")
-            
+            # Ocultar árbol JSON y config scraper
+            try:
+                self.notebook.hide(self.frame_arbol_json)
+            except Exception:
+                pass
+            try:
+                self.notebook.hide(self.frame_config_scraper)
+            except Exception:
+                pass
+            try:
+                self.notebook.hide(self.frame_red_scraper)
+            except Exception:
+                pass
+
             self.btn_generar.config(text="⚙️ Generar Automatización (Playwright)")
-            
+
+        else:  # "Scraper Visual (DOM)"
+            # 6 columnas: sel, idx, FASE, nombre_accion, selector, valor_preview
+            self.tabla["columns"] = ("sel", "idx", "fase", "nombre_accion", "selector", "valor_preview")
+            self.tabla.heading("sel", text="Sel")
+            self.tabla.heading("idx", text="#")
+            self.tabla.heading("fase", text="Fase")
+            self.tabla.heading("nombre_accion", text="Campo / Acción")
+            self.tabla.heading("selector", text="Selector")
+            self.tabla.heading("valor_preview", text="Vista Previa")
+
+            self.tabla.column("sel", width=40, anchor="center", stretch=False)
+            self.tabla.column("idx", width=35, anchor="center", stretch=False)
+            self.tabla.column("fase", width=85, anchor="center", stretch=False)
+            self.tabla.column("nombre_accion", width=150, anchor="w")
+            self.tabla.column("selector", width=180, anchor="w")
+            self.tabla.column("valor_preview", width=270, anchor="w")
+
+            self.notebook.tab(0, text="Atributos")
+            self.notebook.tab(1, text="Selectores")
+            self.notebook.tab(2, text="HTML Externo")
+            # Mostrar config scraper, ocultar árbol JSON
+            try:
+                self.notebook.hide(self.frame_arbol_json)
+            except Exception:
+                pass
+            try:
+                self.notebook.add(self.frame_config_scraper)
+                self.notebook.tab(self.frame_config_scraper, text="⚙️ Config Scraper")
+                # Mostrar tab de Red POST para el scraper
+                try:
+                    self.notebook.add(self.frame_red_scraper)
+                    self.notebook.tab(self.frame_red_scraper, text="🌐 Red POST")
+                except Exception:
+                    pass
+                self.notebook.select(self.frame_config_scraper)
+            except Exception:
+                pass
+
+            self.btn_generar.config(text="⬇️ Generar Script de Scraping")
+
         self.peticiones_capturadas.clear()
         for item in self.tabla.get_children():
             self.tabla.delete(item)
@@ -1403,6 +1825,157 @@ class CapturaApp:
             self.btn_pause.state(["disabled"])
 
     # -------------------------------------------------------------
+    # INSTALACIÓN AUTOMÁTICA DE NAVEGADORES DE PLAYWRIGHT
+    # -------------------------------------------------------------
+    def descargar_e_instalar_navegadores(self, navegador="Chromium"):
+        """Descarga e instala el navegador de Playwright faltante con una ventana de progreso interactiva."""
+        # Mapa de nombre de la UI al identificador de Playwright CLI
+        mapa_navegador = {
+            "Chromium": "chromium",
+            "Firefox": "firefox",
+            "WebKit": "webkit",
+        }
+        nav_id = mapa_navegador.get(navegador, "chromium")
+
+        # --- Ventana modal de progreso ---
+        install_win = tk.Toplevel(self.root)
+        install_win.title("Instalando Navegador...")
+        install_win.geometry("500x230")
+        install_win.resizable(False, False)
+        install_win.configure(bg=self.color_bg)
+        install_win.transient(self.root)
+        install_win.grab_set()
+        install_win.protocol("WM_DELETE_WINDOW", lambda: None)  # Bloquear cierre manual
+
+        # Centrar ventana
+        install_win.update_idletasks()
+        x = self.root.winfo_x() + (self.root.winfo_width() - 500) // 2
+        y = self.root.winfo_y() + (self.root.winfo_height() - 230) // 2
+        install_win.geometry(f"+{x}+{y}")
+
+        lbl_titulo = tk.Label(
+            install_win,
+            text=f"Instalando {navegador} para Playwright...",
+            fg=self.color_fg, bg=self.color_bg,
+            font=("Segoe UI", 11, "bold")
+        )
+        lbl_titulo.pack(pady=(18, 6), padx=20, anchor="w")
+
+        lbl_estado = tk.Label(
+            install_win,
+            text="Iniciando descarga, por favor espere...",
+            fg=self.color_fg_sec, bg=self.color_bg,
+            font=("Segoe UI", 9), wraplength=460, justify="left"
+        )
+        lbl_estado.pack(pady=(0, 10), padx=20, anchor="w")
+
+        # Barra de progreso indeterminada (animada)
+        style_local = ttk.Style()
+        style_local.configure(
+            "Install.Horizontal.TProgressbar",
+            troughcolor="#1e293b", background="#06b6d4",
+            thickness=12, borderwidth=0
+        )
+        progress_bar = ttk.Progressbar(
+            install_win, style="Install.Horizontal.TProgressbar",
+            orient="horizontal", length=460, mode="indeterminate"
+        )
+        progress_bar.pack(pady=6, padx=20)
+        progress_bar.start(15)
+
+        lbl_aviso = tk.Label(
+            install_win,
+            text="⚠️  No cierre la aplicación durante la instalación.",
+            fg="#f59e0b", bg=self.color_bg,
+            font=("Segoe UI", 8, "italic")
+        )
+        lbl_aviso.pack(pady=(10, 0))
+
+        log_lines = []
+
+        def actualizar_estado(texto):
+            """Actualiza el label de estado desde el hilo secundario vía after."""
+            install_win.after(0, lambda t=texto: lbl_estado.config(text=t))
+
+        def hilo_instalacion():
+            exito = False
+            msg_final = ""
+            try:
+                from playwright._impl._driver import compute_driver_executable
+                driver_exec = compute_driver_executable()
+
+                if isinstance(driver_exec, (list, tuple)):
+                    cmd = list(driver_exec) + ["install", nav_id, "ffmpeg"]
+                else:
+                    cmd = [driver_exec, "install", nav_id, "ffmpeg"]
+
+                creation_flags = 0
+                if sys.platform == "win32":
+                    creation_flags = subprocess.CREATE_NO_WINDOW
+
+                proceso = subprocess.Popen(
+                    cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    bufsize=1,
+                    creationflags=creation_flags
+                )
+
+                for linea in iter(proceso.stdout.readline, ""):
+                    linea = linea.strip()
+                    if linea:
+                        log_lines.append(linea)
+                        # Mostrar solo líneas relevantes de progreso
+                        if any(k in linea.lower() for k in ["downloading", "extracting", "installing", "descargando", "chromium", "firefox", "webkit", "ffmpeg", "done", "browser", "mb"]):
+                            actualizar_estado(linea[:120])
+
+                proceso.wait()
+                if proceso.returncode == 0:
+                    exito = True
+                    msg_final = (
+                        f"{navegador} y ffmpeg instalados correctamente.\n"
+                        "Ya puede iniciar la captura nuevamente."
+                    )
+                else:
+                    msg_final = (
+                        f"La instalación terminó con código de error {proceso.returncode}.\n"
+                        f"Detalle:\n" + "\n".join(log_lines[-8:])
+                    )
+            except Exception as e:
+                msg_final = (
+                    f"Error al ejecutar la instalación automática:\n{e}\n\n"
+                    "Puedes instalarlo manualmente desde PowerShell ejecutando:\n"
+                    f"  playwright install {nav_id} ffmpeg"
+                )
+
+            # Finalizar en el hilo de la UI
+            install_win.after(0, lambda: finalizar(exito, msg_final))
+
+        def finalizar(exito, mensaje):
+            try:
+                progress_bar.stop()
+                install_win.grab_release()
+                install_win.destroy()
+            except Exception:
+                pass
+
+            if exito:
+                messagebox.showinfo(
+                    "✅ Instalación Completada",
+                    mensaje
+                )
+                self.lbl_status.config(text=f"{navegador} instalado. Puede iniciar la captura nuevamente.")
+            else:
+                messagebox.showerror(
+                    "Error en la Instalación",
+                    mensaje
+                )
+                self.lbl_status.config(text="Instalación fallida. Revise el error.")
+
+        threading.Thread(target=hilo_instalacion, daemon=True).start()
+
+    # -------------------------------------------------------------
     # MANEJO DE COLA DE EVENTOS
     # -------------------------------------------------------------
     def procesar_cola(self):
@@ -1430,7 +2003,25 @@ class CapturaApp:
                     if tipo == "status":
                         self.lbl_status.config(text=dato)
                     elif tipo == "error":
-                        messagebox.showerror("Error en Captura", dato)
+                        # Detectar si el error es por falta de navegador de Playwright
+                        es_error_navegador = (
+                            "Executable doesn't exist" in dato
+                            or "playwright install" in dato.lower()
+                            or "executable doesn't exist" in dato.lower()
+                        )
+                        if es_error_navegador:
+                            navegador = self.combo_navegador.get() if hasattr(self, "combo_navegador") else "Chromium"
+                            resp = messagebox.askyesno(
+                                "Navegador de Playwright no instalado",
+                                f"El navegador '{navegador}' de Playwright no está instalado en este equipo.\n\n"
+                                f"Error: {dato[:300]}\n\n"
+                                "¿Desea descargar e instalar automáticamente el navegador ahora?\n"
+                                "(Puede requerir conexión a internet y algunos minutos.)"
+                            )
+                            if resp:
+                                self.descargar_e_instalar_navegadores(navegador)
+                        else:
+                            messagebox.showerror("Error en Captura", dato)
                     elif tipo == "peticion":
                         self.peticiones_capturadas.append(dato)
                         idx = len(self.peticiones_capturadas) - 1
@@ -1445,18 +2036,116 @@ class CapturaApp:
                             values=(val_check, idx, dato["metodo"], dato["status"], url_corta),
                             tags=("par" if idx % 2 == 0 else "impar",)
                         )
+                    elif tipo == "post_red_scraper":
+                        # Request POST/PUT capturado en modo Scraper — mostrar en tab Red POST
+                        self.peticiones_red_post.append(dato)
+                        idx_r = len(self.peticiones_red_post) - 1
+                        url_corta = dato.get("url", "")
+                        if len(url_corta) > 80:
+                            url_corta = "..." + url_corta[-77:]
+                        metodo  = dato.get("metodo", "POST")
+                        status  = dato.get("status", "")
+                        tag_red = "ok_red" if str(status).startswith("2") else "err_red"
+                        self.tabla_red_post.insert(
+                            "", "end", iid=str(idx_r),
+                            values=(metodo, status, url_corta),
+                            tags=(tag_red,)
+                        )
+                        # Auto-seleccionar la última entrada para mostrar el detalle
+                        self.tabla_red_post.selection_set(str(idx_r))
+                        self.tabla_red_post.see(str(idx_r))
+                        self.on_post_seleccionado()
                     elif tipo == "accion_dom":
-                        # Agrupar entradas del mismo input (fill)
-                        idx = len(self.peticiones_capturadas) - 1
-                        if (idx >= 0 and dato["tipo_accion"] == "fill" and 
-                            self.peticiones_capturadas[idx].get("tipo_accion") == "fill" and 
-                            self.peticiones_capturadas[idx].get("selector_sugerido") == dato["selector_sugerido"]):
-                            
-                            self.peticiones_capturadas[idx]["valor"] = dato["valor"]
-                            self.peticiones_capturadas[idx]["outerHTML"] = dato["outerHTML"]
-                            
-                            item_id = str(idx)
-                            if self.tabla.exists(item_id):
+
+                        modo_actual = self.combo_modo.get()
+
+                        if "Scraper" in modo_actual:
+                            # MODO SCRAPER: capturar TODOS los eventos
+                            # extract → campo de extracción (Shift+Clic)
+                            # click/fill/navigation/select → paso de Setup
+                            tipo_accion = dato.get("tipo_accion", "")
+                            fase = dato.get("fase_scraper", "setup" if tipo_accion != "extract" else "extract")
+
+                            if tipo_accion == "extract":
+                                # ─── CAMPO DE EXTRACCIÓN ───
+                                nombre_auto = generar_nombre_campo_auto(dato) if generar_nombre_campo_auto else "campo"
+                                nombres_existentes = [p.get("nombre_campo", "") for p in self.peticiones_capturadas]
+                                nombre_final = nombre_auto
+                                sufijo = 2
+                                while nombre_final in nombres_existentes:
+                                    nombre_final = f"{nombre_auto}_{sufijo}"
+                                    sufijo += 1
+                                dato["nombre_campo"] = nombre_final
+                                dato["fase_scraper"] = "extract"
+                                self.peticiones_capturadas.append(dato)
+                                idx = len(self.peticiones_capturadas) - 1
+                                val_check = "☑" if dato.get("seleccionado", True) else "☐"
+                                preview = (dato.get("valor") or "")[:50]
+                                self.tabla.insert("", "end", iid=str(idx),
+                                    values=(val_check, idx, "📤 Extraer", nombre_final,
+                                            dato.get("selector_sugerido", ""), preview),
+                                    tags=("extract",))
+
+                            else:
+                                # ─── PASO DE SETUP ───
+                                # Dedup fills: si el mismo selector fue llenado antes, actualizar
+                                idx_existente = len(self.peticiones_capturadas) - 1
+                                if (tipo_accion == "fill" and
+                                        idx_existente >= 0 and
+                                        self.peticiones_capturadas[idx_existente].get("tipo_accion") == "fill" and
+                                        self.peticiones_capturadas[idx_existente].get("selector_sugerido") == dato.get("selector_sugerido")):
+                                    self.peticiones_capturadas[idx_existente]["valor"] = dato["valor"]
+                                    self.peticiones_capturadas[idx_existente]["outerHTML"] = dato.get("outerHTML", "")
+                                    item_id = str(idx_existente)
+                                    if self.tabla.exists(item_id):
+                                        vals = list(self.tabla.item(item_id, "values"))
+                                        vals[5] = (dato["valor"] or "")[:50]
+                                        self.tabla.item(item_id, values=vals)
+                                else:
+                                    dato["fase_scraper"] = "setup"
+                                    self.peticiones_capturadas.append(dato)
+                                    idx = len(self.peticiones_capturadas) - 1
+                                    tipo_map = {
+                                        "click": "Click 🖱️",
+                                        "fill": "Escribir ⌨️",
+                                        "select": "Seleccionar 📋",
+                                        "navigation": "Ir a URL 🌐",
+                                    }
+                                    accion_legible = tipo_map.get(tipo_accion, tipo_accion.capitalize())
+                                    desc = dato.get("descriptor_legible", "") or dato.get("valor", "")[:40]
+                                    val_check = "☑" if dato.get("seleccionado", True) else "☐"
+                                    self.tabla.insert("", "end", iid=str(idx),
+                                        values=(val_check, idx, "🔧 Setup",
+                                                f"{accion_legible}: {desc[:35]}",
+                                                dato.get("selector_sugerido", ""),
+                                                (dato.get("valor") or "")[:50]),
+                                        tags=("setup",))
+
+                        else:
+                            # MODO GRABADOR DOM (comportamiento original)
+                            idx = len(self.peticiones_capturadas) - 1
+                            if (idx >= 0 and dato["tipo_accion"] == "fill" and
+                                    self.peticiones_capturadas[idx].get("tipo_accion") == "fill" and
+                                    self.peticiones_capturadas[idx].get("selector_sugerido") == dato["selector_sugerido"]):
+
+                                self.peticiones_capturadas[idx]["valor"] = dato["valor"]
+                                self.peticiones_capturadas[idx]["outerHTML"] = dato["outerHTML"]
+
+                                item_id = str(idx)
+                                if self.tabla.exists(item_id):
+                                    tipo_map = {
+                                        "click": "Click 🖱️",
+                                        "fill": "Escribir ⌨️",
+                                        "select": "Seleccionar 📋",
+                                        "navigation": "Ir a URL 🌐",
+                                        "extract": "Extraer Texto 🔍"
+                                    }
+                                    accion_legible = tipo_map.get(self.peticiones_capturadas[idx]["tipo_accion"], self.peticiones_capturadas[idx]["tipo_accion"].capitalize())
+                                    val_check = "☑" if self.peticiones_capturadas[idx].get("seleccionado", True) else "☐"
+                                    self.tabla.item(item_id, values=(val_check, idx, accion_legible, dato["descriptor_legible"], dato["valor"]))
+                            else:
+                                self.peticiones_capturadas.append(dato)
+                                idx = len(self.peticiones_capturadas) - 1
                                 tipo_map = {
                                     "click": "Click 🖱️",
                                     "fill": "Escribir ⌨️",
@@ -1464,28 +2153,15 @@ class CapturaApp:
                                     "navigation": "Ir a URL 🌐",
                                     "extract": "Extraer Texto 🔍"
                                 }
-                                accion_legible = tipo_map.get(self.peticiones_capturadas[idx]["tipo_accion"], self.peticiones_capturadas[idx]["tipo_accion"].capitalize())
-                                val_check = "☑" if self.peticiones_capturadas[idx].get("seleccionado", True) else "☐"
-                                self.tabla.item(item_id, values=(val_check, idx, accion_legible, dato["descriptor_legible"], dato["valor"]))
-                        else:
-                            self.peticiones_capturadas.append(dato)
-                            idx = len(self.peticiones_capturadas) - 1
-                            tipo_map = {
-                                "click": "Click 🖱️",
-                                "fill": "Escribir ⌨️",
-                                "select": "Seleccionar 📋",
-                                "navigation": "Ir a URL 🌐",
-                                "extract": "Extraer Texto 🔍"
-                            }
-                            accion_legible = tipo_map.get(dato["tipo_accion"], dato["tipo_accion"].capitalize())
-                            val_check = "☑" if dato.get("seleccionado", True) else "☐"
-                            self.tabla.insert(
-                                "", 
-                                "end", 
-                                iid=str(idx), 
-                                values=(val_check, idx, accion_legible, dato["descriptor_legible"], dato["valor"]),
-                                tags=("par" if idx % 2 == 0 else "impar",)
-                            )
+                                accion_legible = tipo_map.get(dato["tipo_accion"], dato["tipo_accion"].capitalize())
+                                val_check = "☑" if dato.get("seleccionado", True) else "☐"
+                                self.tabla.insert(
+                                    "",
+                                    "end",
+                                    iid=str(idx),
+                                    values=(val_check, idx, accion_legible, dato["descriptor_legible"], dato["valor"]),
+                                    tags=("par" if idx % 2 == 0 else "impar",)
+                                )
                     elif tipo == "finalizado":
                         self.btn_start.state(["!disabled"])
                         self.entry_url.state(["!disabled"])
@@ -1513,26 +2189,44 @@ class CapturaApp:
         # Guardamos la selección actual para restablecerla después
         seleccionada = self.tabla.selection()
         selected_idx = seleccionada[0] if seleccionada else None
-        
+
         for item in self.tabla.get_children():
             self.tabla.delete(item)
-            
+
         modo = self.combo_modo.get()
         is_api = "APIs" in modo
-        
+        is_scraper = "Scraper" in modo
+
         for idx, pet in enumerate(self.peticiones_capturadas):
             val_check = "☑" if pet.get("seleccionado", True) else "☐"
             if is_api:
                 url_corta = pet["url"]
                 if len(url_corta) > 120:
                     url_corta = url_corta[:117] + "..."
-                self.tabla.insert(
-                    "", 
-                    "end", 
-                    iid=str(idx), 
+                self.tabla.insert("", "end", iid=str(idx),
                     values=(val_check, idx, pet["metodo"], pet["status"], url_corta),
-                    tags=("par" if idx % 2 == 0 else "impar",)
-                )
+                    tags=("par" if idx % 2 == 0 else "impar",))
+            elif is_scraper:
+                fase = pet.get("fase_scraper", "extract")
+                if fase == "extract":
+                    nombre = pet.get("nombre_campo", "")
+                    preview = (pet.get("valor") or "")[:50]
+                    self.tabla.insert("", "end", iid=str(idx),
+                        values=(val_check, idx, "📤 Extraer", nombre,
+                                pet.get("selector_sugerido", ""), preview),
+                        tags=("extract",))
+                else:
+                    tipo_accion = pet.get("tipo_accion", "")
+                    tipo_map = {"click": "Click 🖱️", "fill": "Escribir ⌨️",
+                                "select": "Seleccionar 📋", "navigation": "Ir a URL 🌐"}
+                    accion_legible = tipo_map.get(tipo_accion, tipo_accion.capitalize())
+                    desc = pet.get("descriptor_legible", "") or pet.get("valor", "")[:40]
+                    self.tabla.insert("", "end", iid=str(idx),
+                        values=(val_check, idx, "🔧 Setup",
+                                f"{accion_legible}: {desc[:35]}",
+                                pet.get("selector_sugerido", ""),
+                                (pet.get("valor") or "")[:50]),
+                        tags=("setup",))
             else:
                 tipo_map = {
                     "click": "Click 🖱️",
@@ -1543,9 +2237,9 @@ class CapturaApp:
                 }
                 accion_legible = tipo_map.get(pet["tipo_accion"], pet["tipo_accion"].capitalize())
                 self.tabla.insert(
-                    "", 
-                    "end", 
-                    iid=str(idx), 
+                    "",
+                    "end",
+                    iid=str(idx),
                     values=(val_check, idx, accion_legible, pet["descriptor_legible"], pet["valor"]),
                     tags=("par" if idx % 2 == 0 else "impar",)
                 )
@@ -1562,13 +2256,13 @@ class CapturaApp:
         if not seleccion:
             self.limpiar_detalles()
             return
-            
+
         idx = int(seleccion[0])
         pet = self.peticiones_capturadas[idx]
         modo = self.combo_modo.get()
 
-        # Resaltar elemento en caliente en el navegador (si está activo en modo DOM)
-        if self.capture_thread and self.capture_thread.is_alive() and "Grabador" in modo:
+        # Resaltar elemento en caliente en el navegador (si está activo en modo DOM o Scraper)
+        if self.capture_thread and self.capture_thread.is_alive() and ("Grabador" in modo or "Scraper" in modo):
             sug = pet.get("selector_sugerido")
             if sug:
                 self.capture_thread.input_queue.put(("highlight", sug))
@@ -1588,7 +2282,7 @@ class CapturaApp:
             headers_info.append("=== RESPONSE HEADERS ===")
             for k, v in pet.get("headers_respuesta", {}).items():
                 headers_info.append(f"{k}: {v}")
-                
+
             self.actualizar_caja_texto_headers(self.txt_headers, "\n".join(headers_info))
 
             # 2. Mostrar Payload
@@ -1613,6 +2307,52 @@ class CapturaApp:
             else:
                 respuesta_str = "<Sin Respuesta capturada o respuesta vacía>"
             self.actualizar_caja_texto_json(self.txt_response, respuesta_str)
+
+            # 4. Poblar el Árbol JSON (Opción B)
+            self.poblar_arbol_json(pet.get("respuesta"))
+
+        elif "Scraper" in modo:
+            # Modo Scraper: mostrar detalles del campo capturado
+            atributos_info = []
+            atributos_info.append("=== CAMPO DE SCRAPING ===")
+            atributos_info.append(f"Nombre del Campo: {pet.get('nombre_campo', '')}")
+            atributos_info.append(f"Tag HTML: {pet.get('tagName', '')}")
+            atributos_info.append(f"ID: {pet.get('id') or '<Ninguno>'}")
+            atributos_info.append(f"Name: {pet.get('name') or '<Ninguno>'}")
+            atributos_info.append(f"Class Name: {pet.get('className') or '<Ninguno>'}")
+            atributos_info.append(f"")
+            atributos_info.append(f"=== VALOR CAPTURADO (PREVIEW) ===")
+            atributos_info.append(pet.get("valor", "<vacío>"))
+            self.actualizar_caja_texto_headers(self.txt_headers, "\n".join(atributos_info))
+
+            selectores_info = []
+            selectores_info.append("=== SELECTOR SUGERIDO (PLAYWRIGHT) ===")
+            sug = pet.get("selector_sugerido", "")
+            from captura_api import resolver_locator_playwright
+            locator_traducido = resolver_locator_playwright(sug)
+            selectores_info.append(locator_traducido if sug else "<No aplicable>")
+            selectores_info.append("")
+            selectores_info.append("=== SELECTORES ALTERNATIVOS ===")
+            if pet.get("id"):
+                selectores_info.append(f"Por ID: #{pet['id']}")
+            if pet.get("name"):
+                selectores_info.append(f"Por Name: [name='{pet['name']}']")
+            if pet.get("xpath"):
+                selectores_info.append(f"Por XPath: {pet['xpath']}")
+            selectores_info.append("")
+            selectores_info.append("=== TIPO DE DATO DETECTADO ===")
+            tag = (pet.get("tagName") or "").lower()
+            if tag == "a":
+                selectores_info.append("Enlace → se extraerá atributo href")
+            elif tag == "img":
+                selectores_info.append("Imagen → se extraerá atributo src")
+            else:
+                selectores_info.append("Texto → se extraerá inner_text()")
+            self.actualizar_caja_texto_headers(self.txt_payload, "\n".join(selectores_info))
+
+            html_raw = pet.get("outerHTML", "<No disponible>")
+            self.actualizar_caja_texto(self.txt_response, html_raw)
+
         else:
             # Modo Grabador DOM
             # 1. Mostrar Atributos
@@ -1625,12 +2365,12 @@ class CapturaApp:
             atributos_info.append(f"Type: {pet.get('type') or '<Ninguno>'}")
             atributos_info.append(f"Placeholder: {pet.get('placeholder') or '<Ninguno>'}")
             self.actualizar_caja_texto_headers(self.txt_headers, "\n".join(atributos_info))
-            
+
             # 2. Mostrar Selectores
             selectores_info = []
             selectores_info.append("=== SELECTOR SUGERIDO (PLAYWRIGHT) ===")
             sug = pet.get("selector_sugerido", "")
-            
+
             from captura_api import resolver_locator_playwright
             locator_traducido = resolver_locator_playwright(sug)
             selectores_info.append(locator_traducido if sug else "<No aplicable>")
@@ -1648,7 +2388,7 @@ class CapturaApp:
             if pet.get("xpath"):
                 selectores_info.append(f"Por XPath: {pet['xpath']}")
             self.actualizar_caja_texto_headers(self.txt_payload, "\n".join(selectores_info))
-            
+
             # 3. Mostrar HTML Externo
             html_raw = pet.get("outerHTML", "<No disponible (por ejemplo, en navegación)>")
             self.actualizar_caja_texto(self.txt_response, html_raw)
@@ -1762,20 +2502,39 @@ class CapturaApp:
             entry_url.insert(0, pet.get("url", ""))
             entry_url.grid(row=0, column=1, sticky="ew", pady=5, padx=5)
             entries["url"] = entry_url
-            
+
             ttk.Label(frame_form, text="Método:").grid(row=1, column=0, sticky="w", pady=5, padx=5)
             entry_method = ttk.Entry(frame_form, font=("Segoe UI", 10))
             entry_method.insert(0, pet.get("metodo", ""))
             entry_method.grid(row=1, column=1, sticky="ew", pady=5, padx=5)
             entries["metodo"] = entry_method
-            
+
             ttk.Label(frame_form, text="Payload:").grid(row=2, column=0, sticky="nw", pady=5, padx=5)
             txt_payload = scrolledtext.ScrolledText(frame_form, height=6, bg=self.color_panel, fg=self.color_fg, font=("Consolas", 10))
             txt_payload.insert(tk.END, pet.get("payload_enviado") or "")
             txt_payload.grid(row=2, column=1, sticky="nsew", pady=5, padx=5)
             frame_form.rowconfigure(2, weight=1)
             entries["payload_enviado"] = txt_payload
+        elif "Scraper" in modo:
+            ttk.Label(frame_form, text="Nombre del Campo:").grid(row=0, column=0, sticky="w", pady=5, padx=5)
+            entry_nombre = ttk.Entry(frame_form, font=("Segoe UI", 10))
+            entry_nombre.insert(0, pet.get("nombre_campo", ""))
+            entry_nombre.grid(row=0, column=1, sticky="ew", pady=5, padx=5)
+            entries["nombre_campo"] = entry_nombre
+
+            ttk.Label(frame_form, text="Selector Sugerido:").grid(row=1, column=0, sticky="w", pady=5, padx=5)
+            entry_sel = ttk.Entry(frame_form, font=("Segoe UI", 10))
+            entry_sel.insert(0, pet.get("selector_sugerido", ""))
+            entry_sel.grid(row=1, column=1, sticky="ew", pady=5, padx=5)
+            entries["selector_sugerido"] = entry_sel
+
+            ttk.Label(frame_form, text="XPath:").grid(row=2, column=0, sticky="w", pady=5, padx=5)
+            entry_xpath = ttk.Entry(frame_form, font=("Segoe UI", 10))
+            entry_xpath.insert(0, pet.get("xpath", ""))
+            entry_xpath.grid(row=2, column=1, sticky="ew", pady=5, padx=5)
+            entries["xpath"] = entry_xpath
         else:
+            # Modo Grabador DOM
             ttk.Label(frame_form, text="Descriptor:").grid(row=0, column=0, sticky="w", pady=5, padx=5)
             entry_desc = ttk.Entry(frame_form, font=("Segoe UI", 10))
             entry_desc.insert(0, pet.get("descriptor_legible", ""))
@@ -1793,6 +2552,7 @@ class CapturaApp:
             entry_val.insert(0, pet.get("valor", ""))
             entry_val.grid(row=2, column=1, sticky="ew", pady=5, padx=5)
             entries["valor"] = entry_val
+
             
         def guardar():
             for k, widget in entries.items():
@@ -1894,6 +2654,213 @@ class CapturaApp:
             
         widget.config(state=tk.DISABLED)
 
+    def _on_motor_cambiado(self):
+        """Muestra/oculta el panel de login BS4 y el aviso según el motor elegido."""
+        motor = self.scraper_motor.get() if hasattr(self, "scraper_motor") else "playwright"
+        tiene_setup = any(p.get("fase_scraper") == "setup" for p in self.peticiones_capturadas)
+
+        if motor == "bs4":
+            # Mostrar panel de login BS4
+            if hasattr(self, "frame_bs4_login"):
+                self.frame_bs4_login.pack(fill="x", pady=4)
+            # Mostrar aviso si hay pasos de setup capturados
+            if tiene_setup and hasattr(self, "lbl_motor_aviso"):
+                self.lbl_motor_aviso.pack(anchor="w", pady=(0, 2))
+        else:
+            # Ocultar panel de login BS4
+            if hasattr(self, "frame_bs4_login"):
+                self.frame_bs4_login.pack_forget()
+            if hasattr(self, "lbl_motor_aviso"):
+                self.lbl_motor_aviso.pack_forget()
+
+    # -----------------------------------------------------------------
+    # Red POST en modo Scraper
+    # -----------------------------------------------------------------
+    def on_post_seleccionado(self, event=None):
+        """Muestra los detalles del request POST seleccionado en el panel de detalle."""
+        sel = self.tabla_red_post.selection()
+        if not sel:
+            return
+        idx = int(sel[0])
+        if idx >= len(self.peticiones_red_post):
+            return
+        pet = self.peticiones_red_post[idx]
+
+        lineas = []
+        lineas.append(f"=== {pet.get('metodo', 'POST')}  {pet.get('status', '')} ===")
+        lineas.append(f"URL: {pet.get('url', '')}")
+        lineas.append("")
+        lineas.append("--- REQUEST BODY ---")
+        rb = pet.get("request_body")
+        if rb is None:
+            lineas.append("(sin cuerpo)")
+        elif isinstance(rb, dict):
+            lineas.append(json.dumps(rb, indent=2, ensure_ascii=False))
+        else:
+            lineas.append(str(rb))
+        lineas.append("")
+        lineas.append("--- RESPONSE ---")
+        resp = pet.get("respuesta")
+        if resp is None:
+            lineas.append("(sin respuesta / error)")
+        elif isinstance(resp, dict):
+            lineas.append(json.dumps(resp, indent=2, ensure_ascii=False))
+        else:
+            lineas.append(str(resp))
+
+        texto = "\n".join(lineas)
+        self.txt_red_detalle.config(state=tk.NORMAL)
+        self.txt_red_detalle.delete("1.0", tk.END)
+        self.txt_red_detalle.insert(tk.END, texto)
+        self.txt_red_detalle.config(state=tk.DISABLED)
+
+    def autodetectar_login_bs4(self):
+        """Analiza el request POST seleccionado y auto-rellena los campos de Login BS4."""
+        sel = self.tabla_red_post.selection()
+        if not sel:
+            messagebox.showinfo("Sin selección",
+                "Seleccioná un request POST de la lista antes de autocompletar.")
+            return
+        idx = int(sel[0])
+        if idx >= len(self.peticiones_red_post):
+            return
+        pet = self.peticiones_red_post[idx]
+
+        url      = pet.get("url", "")
+        body     = pet.get("request_body") or {}
+        response = pet.get("respuesta") or {}
+
+        # --- Detectar tipo de auth y campos ---
+        auth_tipo   = "form_post"
+        user_field  = "username"
+        pass_field  = "password"
+        token_field = "token"
+
+        if isinstance(body, dict):
+            auth_tipo = "json_post"
+            # Buscar campo de usuario
+            for k in body:
+                if any(p in k.lower() for p in ["user", "login", "email", "correo", "usuario"]):
+                    user_field = k
+                    break
+            # Buscar campo de contraseña
+            for k in body:
+                if any(p in k.lower() for p in ["pass", "clave", "secret", "pwd", "contrasena", "contrase"]):
+                    pass_field = k
+                    break
+        elif isinstance(body, str) and "=" in body:
+            auth_tipo = "form_post"  # URL-encoded form
+
+        # --- Detectar token en la respuesta ---
+        if isinstance(response, dict):
+            for k in response:
+                if any(p in k.lower() for p in ["token", "access", "jwt", "auth", "bearer"]):
+                    token_field = k
+                    # Si la respuesta tiene un token, probablemente es bearer
+                    auth_tipo = "bearer_token"
+                    break
+
+        # --- Rellenar el panel Login BS4 ---
+        if hasattr(self, "bs4_login_url"):
+            self.bs4_login_url.set(url)
+        if hasattr(self, "bs4_login_user_field"):
+            self.bs4_login_user_field.set(user_field)
+        if hasattr(self, "bs4_login_pass_field"):
+            self.bs4_login_pass_field.set(pass_field)
+        if hasattr(self, "bs4_auth_tipo"):
+            self.bs4_auth_tipo.set(auth_tipo)
+        if hasattr(self, "bs4_token_field"):
+            self.bs4_token_field.set(token_field)
+
+        # Activar motor BS4 y mostrar su panel
+        if hasattr(self, "scraper_motor"):
+            self.scraper_motor.set("bs4")
+            self._on_motor_cambiado()
+
+        messagebox.showinfo(
+            "✅ Login BS4 autocompletado",
+            f"Se detectó:\n"
+            f"  URL Login: {url[:60]}\n"
+            f"  Campo usuario: {user_field}\n"
+            f"  Campo contraseña: {pass_field}\n"
+            f"  Tipo Auth: {auth_tipo}\n"
+            f"  Campo token: {token_field}\n\n"
+            "Revisá y ajustá los valores en el panel 'Login BS4' si es necesario."
+        )
+
+
+    # -------------------------------------------------------------
+    # ÁRBOL JSON (Opción B)
+    # -------------------------------------------------------------
+    def poblar_arbol_json(self, dato):
+        """Rellena el Treeview del árbol JSON con los datos de la respuesta seleccionada."""
+        for item in self.arbol_json.get_children():
+            self.arbol_json.delete(item)
+
+        if dato is None:
+            self.arbol_json.insert("", "end", text="<Sin datos>", values=("", "", ""))
+            return
+
+        self._insertar_nodo_arbol("", "", dato, ruta="raiz")
+
+    def _insertar_nodo_arbol(self, parent, clave, valor, ruta=""):
+        """Inserta recursivamente un nodo en el árbol JSON."""
+        MAX_HIJOS = 200  # límite para evitar cuelgues con respuestas masivas
+
+        if isinstance(valor, dict):
+            tipo_str = f"dict ({len(valor)})"
+            node_id = self.arbol_json.insert(
+                parent, "end",
+                text=f"📁 {clave}" if clave else "📁 [raíz]",
+                values=(clave, tipo_str, ""),
+                open=(parent == "")  # expandir el nodo raíz por defecto
+            )
+            for i, (k, v) in enumerate(valor.items()):
+                if i >= MAX_HIJOS:
+                    self.arbol_json.insert(node_id, "end", text="... [truncado]", values=("", "", f"{len(valor) - MAX_HIJOS} campos más"))
+                    break
+                self._insertar_nodo_arbol(node_id, k, v, ruta=f"{ruta}.{k}")
+
+        elif isinstance(valor, list):
+            tipo_str = f"list ({len(valor)})"
+            node_id = self.arbol_json.insert(
+                parent, "end",
+                text=f"📋 {clave}" if clave else "📋 [raíz]",
+                values=(clave, tipo_str, ""),
+                open=(parent == "")
+            )
+            for i, item in enumerate(valor):
+                if i >= MAX_HIJOS:
+                    self.arbol_json.insert(node_id, "end", text="... [truncado]", values=("", "", f"{len(valor) - MAX_HIJOS} items más"))
+                    break
+                self._insertar_nodo_arbol(node_id, f"[{i}]", item, ruta=f"{ruta}[{i}]")
+
+        else:
+            # Valor escalar: string, número, bool, null
+            if isinstance(valor, bool):
+                tipo_str = "bool"
+                val_str = str(valor).lower()
+            elif isinstance(valor, int):
+                tipo_str = "int"
+                val_str = str(valor)
+            elif isinstance(valor, float):
+                tipo_str = "float"
+                val_str = str(valor)
+            elif valor is None:
+                tipo_str = "null"
+                val_str = "null"
+            else:
+                tipo_str = "str"
+                val_str = str(valor)
+                if len(val_str) > 120:
+                    val_str = val_str[:117] + "..."
+
+            self.arbol_json.insert(
+                parent, "end",
+                text=f"  {clave}",
+                values=(clave, tipo_str, val_str)
+            )
+
     # -------------------------------------------------------------
     # GENERACIÓN DE CÓDIGO
     # -------------------------------------------------------------
@@ -1911,6 +2878,100 @@ class CapturaApp:
 
         modo = self.combo_modo.get()
         is_api = "APIs" in modo
+        is_scraper = "Scraper" in modo
+
+        if is_scraper:
+            url_obj = self.entry_url.get().strip()
+            motor   = getattr(self, "scraper_motor", None)
+            motor   = motor.get() if motor else "playwright"
+
+            # Separar pasos de Setup y campos de Extracción
+            pasos_setup   = [p for p in peticiones_a_unificar if p.get("fase_scraper", "extract") == "setup"]
+            campos_extract = [p for p in peticiones_a_unificar if p.get("fase_scraper", "extract") == "extract"]
+
+            if motor == "bs4" and pasos_setup:
+                messagebox.showerror(
+                    "Motor incompatible",
+                    "El motor 'requests + BeautifulSoup' no soporta pasos de Setup/Login.\n"
+                    "Desactivá los pasos de Setup (desmarcalos) o usá el motor Playwright."
+                )
+                return
+
+            if not campos_extract:
+                messagebox.showwarning(
+                    "Sin campos de extracción",
+                    "No hay campos marcados como '📤 Extraer'.\n"
+                    "Usa Shift+Clic en el navegador para marcar elementos a extraer."
+                )
+                return
+
+            config_scraping = {
+                "selector_paginacion": self.scraper_selector_paginacion.get().strip(),
+                "max_paginas":  self.scraper_max_paginas.get(),
+                "delay_paginas": self.scraper_delay.get(),
+                "formato_csv":  self.scraper_fmt_csv.get(),
+                "formato_json": self.scraper_fmt_json.get(),
+                "headless":     self.scraper_headless.get(),
+            }
+
+            from tkinter import filedialog
+            if motor == "bs4":
+                nombre_sugerido = "scraper_bs4.py"
+                titulo_dialogo  = "Guardar Script BS4 Como"
+            else:
+                nombre_sugerido = "scraper_generado.py"
+                titulo_dialogo  = "Guardar Script Playwright Como"
+
+            nombre_archivo = filedialog.asksaveasfilename(
+                initialdir=self.output_base_dir,
+                initialfile=nombre_sugerido,
+                defaultextension=".py",
+                filetypes=[("Archivos Python", "*.py"), ("Todos los archivos", "*.*")],
+                title=titulo_dialogo
+            )
+            if not nombre_archivo:
+                return
+
+            try:
+                if motor == "bs4":
+                    # Construir login_config desde los campos del panel BS4
+                    login_url_val = getattr(self, "bs4_login_url", None)
+                    login_url_val = login_url_val.get().strip() if login_url_val else ""
+                    lc = None
+                    if login_url_val:
+                        lc = {
+                            "login_url":   login_url_val,
+                            "user_field":  getattr(self, "bs4_login_user_field", tk.StringVar(value="username")).get(),
+                            "pass_field":  getattr(self, "bs4_login_pass_field", tk.StringVar(value="password")).get(),
+                            "auth_tipo":   getattr(self, "bs4_auth_tipo", tk.StringVar(value="form_post")).get(),
+                            "token_field": getattr(self, "bs4_token_field", tk.StringVar(value="token")).get(),
+                        }
+                    generar_script_scraping_bs4(
+                        campos_extract=campos_extract,
+                        url_objetivo=url_obj,
+                        config_scraping=config_scraping,
+                        nombre_archivo=nombre_archivo,
+                        login_config=lc
+                    )
+
+                else:
+                    # Playwright — pasamos TODOS (setup + extract)
+                    generar_script_scraping(
+                        campos_scraping=peticiones_a_unificar,
+                        url_objetivo=url_obj,
+                        config_scraping=config_scraping,
+                        nombre_archivo=nombre_archivo
+                    )
+
+                if os.path.exists(nombre_archivo):
+                    with open(nombre_archivo, "r", encoding="utf-8") as f:
+                        codigo_generado = f.read()
+                    self.mostrar_popup_codigo(nombre_archivo, codigo_generado)
+                else:
+                    messagebox.showerror("Error", f"No se pudo generar el archivo {nombre_archivo}.")
+            except Exception as e:
+                messagebox.showerror("Error", f"Error al generar el script de scraping:\n{e}")
+            return
 
         if is_api:
             from tkinter import filedialog
