@@ -1,0 +1,793 @@
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+Callback interceptar_respuesta: GET https://rpa-site.claro.amx/api/integrantes
+Callback interceptar_respuesta: GET https://rpa-site.claro.amx/api/softwares
+Callback interceptar_respuesta: GET https://rpa-site.claro.amx/api/metricEncuesta
+GUI procesando cola: Tipo=peticion
+GUI procesando cola: Tipo=peticion
+GUI procesando cola: Tipo=peticion
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=finalizado
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+Callback interceptar_respuesta: GET https://rpa-site.claro.amx/api/integrantes
+Callback interceptar_respuesta: GET https://rpa-site.claro.amx/api/metricEncuesta
+Callback interceptar_respuesta: GET https://rpa-site.claro.amx/api/softwares
+GUI procesando cola: Tipo=peticion
+GUI procesando cola: Tipo=peticion
+GUI procesando cola: Tipo=peticion
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=finalizado
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+Callback interceptar_respuesta: GET https://rpa-site.claro.amx/api/integrantes
+Callback interceptar_respuesta: GET https://rpa-site.claro.amx/api/softwares
+Callback interceptar_respuesta: GET https://rpa-site.claro.amx/api/metricEncuesta
+GUI procesando cola: Tipo=peticion
+GUI procesando cola: Tipo=peticion
+GUI procesando cola: Tipo=peticion
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=finalizado
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=finalizado
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+Callback interceptar_respuesta: POST https://rpa-site.claro.amx/api/claropay/login
+GUI procesando cola: Tipo=peticion
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=finalizado
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=finalizado
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=finalizado
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+Callback interceptar_respuesta: GET https://rpa-site.claro.amx/api/softwares
+Callback interceptar_respuesta: GET https://rpa-site.claro.amx/api/metricEncuesta
+GUI procesando cola: Tipo=peticion
+GUI procesando cola: Tipo=peticion
+Callback interceptar_respuesta: GET https://rpa-site.claro.amx/api/cumpleanos
+GUI procesando cola: Tipo=peticion
+Callback interceptar_respuesta: GET https://rpa-site.claro.amx/api/informes/2026-S1
+GUI procesando cola: Tipo=peticion
+Callback interceptar_respuesta: GET https://rpa-site.claro.amx/api/metricEncuesta
+GUI procesando cola: Tipo=peticion
+Callback interceptar_respuesta: GET https://rpa-site.claro.amx/api/referentes-it
+GUI procesando cola: Tipo=peticion
+Callback interceptar_respuesta: GET https://rpa-site.claro.amx/api/casoExito
+Callback interceptar_respuesta: GET https://rpa-site.claro.amx/api/integrantes
+GUI procesando cola: Tipo=peticion
+GUI procesando cola: Tipo=peticion
+Callback interceptar_respuesta: GET https://rpa-site.claro.amx/api/metricas/cycle-time?year=2026
+Callback interceptar_respuesta: GET https://rpa-site.claro.amx/api/metricProyectos/2026
+GUI procesando cola: Tipo=peticion
+GUI procesando cola: Tipo=peticion
+Callback interceptar_respuesta: GET https://rpa-site.claro.amx/api/proveedores-metricas?year=202
+GUI procesando cola: Tipo=peticion
+Callback interceptar_respuesta: GET https://rpa-site.claro.amx/api/proveedores-pipeline
+GUI procesando cola: Tipo=peticion
+Callback interceptar_respuesta: GET https://rpa-site.claro.amx/api/softwares
+GUI procesando cola: Tipo=peticion
+Callback interceptar_respuesta: GET https://rpa-site.claro.amx/api/integrantes
+Callback interceptar_respuesta: GET https://rpa-site.claro.amx/api/metricas/pipeline
+GUI procesando cola: Tipo=peticion
+GUI procesando cola: Tipo=peticion
+Callback interceptar_respuesta: GET https://rpa-site.claro.amx/api/referenteProyectos?referente=
+GUI procesando cola: Tipo=peticion
+Callback interceptar_respuesta: GET https://rpa-site.claro.amx/api/cumpleanos
+GUI procesando cola: Tipo=peticion
+Callback interceptar_respuesta: GET https://rpa-site.claro.amx/api/metricEquipo
+Callback interceptar_respuesta: GET https://rpa-site.claro.amx/api/metricEncuesta
+GUI procesando cola: Tipo=peticion
+GUI procesando cola: Tipo=peticion
+Callback interceptar_respuesta: GET https://rpa-site.claro.amx/api/metricEncuesta
+GUI procesando cola: Tipo=peticion
+Callback interceptar_respuesta: GET https://rpa-site.claro.amx/api/metricProyectos/2026
+GUI procesando cola: Tipo=peticion
+Callback interceptar_respuesta: GET https://rpa-site.claro.amx/api/casoExito
+GUI procesando cola: Tipo=peticion
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=finalizado
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+Callback interceptar_respuesta: GET https://rpa-site.claro.amx/api/integrantes
+Callback interceptar_respuesta: GET https://rpa-site.claro.amx/api/metricEncuesta
+GUI procesando cola: Tipo=peticion
+GUI procesando cola: Tipo=peticion
+Callback interceptar_respuesta: GET https://rpa-site.claro.amx/api/softwares
+GUI procesando cola: Tipo=peticion
+Callback interceptar_respuesta: GET https://rpa-site.claro.amx/api/casoExito
+GUI procesando cola: Tipo=peticion
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=finalizado
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=finalizado
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=finalizado
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: click Enlace "Solicitudes"
+GUI procesando cola: Tipo=accion_dom
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/solicitudes'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/solicitudes'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: click Enlace "Webs"
+GUI procesando cola: Tipo=accion_dom
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/webs'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/webs'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: click Enlace "Encuesta"
+GUI procesando cola: Tipo=accion_dom
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/encuesta/entrar'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/encuesta/entrar'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: click Enlace "Estadisticas"
+GUI procesando cola: Tipo=accion_dom
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/informe'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/informe'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: click Enlace "Seguimiento"
+GUI procesando cola: Tipo=accion_dom
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/estimaciones/carga-real'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/estimaciones/carga-real'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: click Enlace "Bots"
+GUI procesando cola: Tipo=accion_dom
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/bots'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/bots'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: click Texto/Contenedor "×"
+GUI procesando cola: Tipo=accion_dom
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: click Botón
+GUI procesando cola: Tipo=accion_dom
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: click Enlace "Guardias"
+GUI procesando cola: Tipo=accion_dom
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/guardias'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/guardias'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: click Enlace "Inicio"
+GUI procesando cola: Tipo=accion_dom
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=finalizado
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=error
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=finalizado
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+Callback interceptar_respuesta: GET https://github.com/antoinevastel/fpscanner/branch-and-tag-co
+Callback interceptar_respuesta: GET https://github.com/antoinevastel/fpscanner/hovercards/citati
+Callback interceptar_respuesta: GET https://github.com/antoinevastel/fpscanner/recently-touched-
+Callback interceptar_respuesta: GET https://github.com/antoinevastel/fpscanner/latest-commit
+Callback interceptar_respuesta: GET https://github.com/antoinevastel/fpscanner/contributors_list
+Callback interceptar_respuesta: GET https://github.com/antoinevastel/fpscanner/tree-commit-info
+GUI procesando cola: Tipo=peticion
+https://github.com/antoinevastel/fpscanner/refs?type=branch
+GUI procesando cola: Tipo=peticion
+GUI procesando cola: Tipo=peticion
+GUI procesando cola: Tipo=peticion
+GUI procesando cola: Tipo=peticion
+GUI procesando cola: Tipo=peticion
+GUI procesando cola: Tipo=peticion
+Callback interceptar_respuesta: GET https://github.com/antoinevastel/fpscanner/packages_list?cur
+Callback interceptar_respuesta: GET https://github.com/antoinevastel/fpscanner/used_by_list
+Callback interceptar_respuesta: GET https://github.com/antoinevastel/fpscanner/overview-files/ma
+GUI procesando cola: Tipo=peticion
+GUI procesando cola: Tipo=peticion
+GUI procesando cola: Tipo=peticion
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=finalizado
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=accion_dom
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=finalizado
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=accion_dom
+GUI procesando cola: Tipo=status
+[DEBUG_FRAME] source.frame: name='', url='https://bot.sannysoft.com/'
+[DEBUG_FRAME] main_frame: name='', url='https://bot.sannysoft.com/'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: extract Celda de tabla "WebDriver (New)"
+GUI procesando cola: Tipo=accion_dom
+[DEBUG_FRAME] source.frame: name='', url='https://bot.sannysoft.com/'
+[DEBUG_FRAME] main_frame: name='', url='https://bot.sannysoft.com/'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: extract Celda de tabla "missing (passed)"
+GUI procesando cola: Tipo=accion_dom
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=finalizado
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=finalizado
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+Callback interceptar_respuesta: GET https://abrahamjuliot.github.io/creepjs/creep.js
+GUI procesando cola: Tipo=peticion
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=finalizado
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=accion_dom
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=finalizado
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=finalizado
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=finalizado
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+Callback interceptar_respuesta: POST https://nowsecure.nl/cdn-cgi/rum?
+Callback interceptar_respuesta: POST https://nowsecure.nl/cdn-cgi/challenge-platform/h/g/jsd/ones
+GUI procesando cola: Tipo=peticion
+GUI procesando cola: Tipo=peticion
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=finalizado
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=finalizado
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=finalizado
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+Callback interceptar_respuesta: GET https://rpa-site.claro.amx/api/informes/2026-S1
+GUI procesando cola: Tipo=peticion
+Callback interceptar_respuesta: GET https://rpa-site.claro.amx/api/metricEncuesta
+GUI procesando cola: Tipo=peticion
+Callback interceptar_respuesta: GET https://rpa-site.claro.amx/api/proveedores-pipeline
+GUI procesando cola: Tipo=peticion
+Callback interceptar_respuesta: GET https://rpa-site.claro.amx/api/metricas/pipeline
+GUI procesando cola: Tipo=peticion
+Callback interceptar_respuesta: GET https://rpa-site.claro.amx/api/referenteProyectos?referente=
+Callback interceptar_respuesta: GET https://rpa-site.claro.amx/api/metricProyectos/2026
+GUI procesando cola: Tipo=peticion
+GUI procesando cola: Tipo=peticion
+Callback interceptar_respuesta: GET https://rpa-site.claro.amx/api/metricEncuesta
+GUI procesando cola: Tipo=peticion
+Callback interceptar_respuesta: GET https://rpa-site.claro.amx/api/metricEquipo
+GUI procesando cola: Tipo=peticion
+Callback interceptar_respuesta: GET https://rpa-site.claro.amx/api/metricProyectos/2026
+GUI procesando cola: Tipo=peticion
+Callback interceptar_respuesta: GET https://rpa-site.claro.amx/api/metricas/cycle-time?year=2026
+GUI procesando cola: Tipo=peticion
+Callback interceptar_respuesta: GET https://rpa-site.claro.amx/api/proveedores-metricas?year=202
+GUI procesando cola: Tipo=peticion
+Callback interceptar_respuesta: GET https://rpa-site.claro.amx/api/referentes-it
+GUI procesando cola: Tipo=peticion
+Callback interceptar_respuesta: POST https://ogads-pa.clients6.google.com/$rpc/google.internal.on
+GUI procesando cola: Tipo=peticion
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=finalizado
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=finalizado
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=status
+GUI procesando cola: Tipo=finalizado
+Callback interceptar_respuesta: GET https://rpa-site.claro.amx/api/metricEncuesta
+Callback interceptar_respuesta: GET https://rpa-site.claro.amx/api/softwares
+Callback interceptar_respuesta: GET https://rpa-site.claro.amx/api/integrantes
+Callback interceptar_respuesta: GET https://rpa-site.claro.amx/api/casoExito
+Callback interceptar_respuesta: POST https://rpa-site.claro.amx/api/login
+Callback interceptar_respuesta: GET https://rpa-site.claro.amx/api/cumpleanos
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: click Enlace "Solicitudes"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/solicitudes'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/solicitudes'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: click Enlace "RPA Procesos"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/backlog'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/backlog'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: click Enlace "Webs"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/webs'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/webs'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: click Enlace "Encuesta"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/encuesta/entrar'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/encuesta/entrar'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: click Enlace "Estadisticas"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/informe'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/informe'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: click Enlace "Seguimiento"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/estimaciones/carga-real'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/estimaciones/carga-real'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: click Enlace "Bots"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/bots'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/bots'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: fill Campo text "Usuario"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/bots'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/bots'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: fill Campo text "Usuario"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/bots'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/bots'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: fill Campo text "Usuario"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/bots'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/bots'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: fill Campo text "Usuario"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/bots'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/bots'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: fill Campo text "Usuario"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/bots'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/bots'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: fill Campo text "Usuario"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/bots'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/bots'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: fill Campo text "Usuario"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/bots'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/bots'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: fill Campo text "Usuario"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/bots'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/bots'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: fill Campo text "Usuario"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/bots'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/bots'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: fill Campo text "Usuario"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/bots'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/bots'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: fill Campo text "Usuario"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/bots'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/bots'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: fill Campo text "Usuario"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/bots'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/bots'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: fill Campo password "Contraseña"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/bots'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/bots'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: fill Campo password "Contraseña"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/bots'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/bots'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: fill Campo password "Contraseña"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/bots'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/bots'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: fill Campo password "Contraseña"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/bots'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/bots'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: fill Campo password "Contraseña"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/bots'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/bots'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: fill Campo password "Contraseña"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/bots'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/bots'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: fill Campo password "Contraseña"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/bots'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/bots'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: fill Campo password "Contraseña"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/bots'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/bots'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: fill Campo password "Contraseña"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/bots'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/bots'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: extract Texto/Contenedor "RPA-5117-bot_logs"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/bots'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/bots'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: extract Texto/Contenedor "🤖Panel de Bots RPA"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/bots'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/bots'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: click Texto/Contenedor "Inicio¿Que es RPA?¿Quiénes ..."
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/bots'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/bots'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: click Texto/Contenedor "Inicio¿Que es RPA?¿Quiénes ..."
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/bots'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/bots'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: click Texto/Contenedor "Inicio¿Que es RPA?¿Quiénes ..."
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/bots'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/bots'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: click Texto/Contenedor "Inicio¿Que es RPA?¿Quiénes ..."
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/bots'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/bots'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: click Fila de tabla
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/bots'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/bots'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: extract Texto/Contenedor "RPA-5401-Distribucion-de-eq..."
+Callback interceptar_respuesta: GET https://rpa-site.claro.amx/api/integrantes
+Callback interceptar_respuesta: GET https://rpa-site.claro.amx/api/softwares
+Callback interceptar_respuesta: GET https://rpa-site.claro.amx/api/metricEncuesta
+Callback interceptar_respuesta: GET https://rpa-site.claro.amx/api/casoExito
+Callback interceptar_respuesta: POST https://rpa-site.claro.amx/api/login
+Callback interceptar_respuesta: GET https://rpa-site.claro.amx/api/cumpleanos
+Callback interceptar_respuesta: GET https://rpa-site.claro.amx/api/jira/mis-proyectos?username=a
+Callback interceptar_respuesta: GET https://rpa-site.claro.amx/api/jira/prestigio?username=asimo
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: click Botón "Ahora no"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: click Texto/Contenedor
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: fill Campo text "Username"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: fill Campo text "Username"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: fill Campo text "Username"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: fill Campo text "Username"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: fill Campo text "Username"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: fill Campo text "Username"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: fill Campo password "Contraseña"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: fill Campo password "Contraseña"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: fill Campo password "Contraseña"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: fill Campo password "Contraseña"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: fill Campo password "Contraseña"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: fill Campo password "Contraseña"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: fill Campo password "Contraseña"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: fill Campo password "Contraseña"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: fill Campo password "Contraseña"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: fill Campo text "Clave de validación"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: fill Campo text "Clave de validación"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: fill Campo text "Clave de validación"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: fill Campo text "Clave de validación"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: fill Campo text "Clave de validación"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: fill Campo text "Clave de validación"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: fill Campo text "Clave de validación"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: fill Campo text "Clave de validación"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: fill Campo text "Clave de validación"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: click Botón "Aceptar"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: click Enlace "Mis Proyectos"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/jira'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/jira'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: extract Texto/Contenedor "Proyectos"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/jira'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/jira'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: extract Texto/Contenedor "Funcionales"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/jira'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/jira'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: extract Texto/Contenedor "Técnicas"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/jira'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/jira'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: extract Botón "Actualizar"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/jira'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/jira'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: click Botón "Actualizar"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: click Botón "Ahora no"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: click Texto/Contenedor
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: fill Campo text "Username"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: fill Campo text "Username"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: fill Campo text "Username"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: fill Campo text "Username"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: fill Campo text "Username"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: fill Campo text "Username"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: fill Campo password "Contraseña"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: fill Campo password "Contraseña"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: fill Campo password "Contraseña"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: fill Campo password "Contraseña"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: fill Campo password "Contraseña"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: fill Campo password "Contraseña"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: fill Campo password "Contraseña"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: fill Campo password "Contraseña"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: fill Campo password "Contraseña"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: fill Campo text "Clave de validación"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: fill Campo text "Clave de validación"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: fill Campo text "Clave de validación"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: fill Campo text "Clave de validación"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: fill Campo text "Clave de validación"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: fill Campo text "Clave de validación"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: fill Campo text "Clave de validación"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: fill Campo text "Clave de validación"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: fill Campo text "Clave de validación"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: click Botón "Aceptar"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: click Enlace "Metricas"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/estadisticas'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/estadisticas'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: click Texto/Contenedor
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/estadisticas'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/estadisticas'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: extract Elemento <svg> "11% 89%"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/estadisticas'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/estadisticas'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: extract Elemento <svg> "7% 93%"
+[DEBUG_FRAME] source.frame: name='', url='https://rpa-site.claro.amx/estadisticas'
+[DEBUG_FRAME] main_frame: name='', url='https://rpa-site.claro.amx/estadisticas'
+[DEBUG_FRAME] es_main_frame: True
+Callback registrar_accion: extract Elemento <svg> "5% 95%"

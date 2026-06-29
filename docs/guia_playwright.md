@@ -119,35 +119,6 @@ La interacción visual con el navegador web es lenta y consume recursos de memor
 
 ---
 
-## 5. Capturando Llamadas con `captura_api.py`
-
-Para automatizar mediante `requests`, primero debemos saber **qué endpoints** consume el portal y **cómo estructurar** el JSON de envío.
-Hemos desarrollado un interceptor avanzado en [captura_api.py](file:///c:/Users/marchettif/Desktop/RPA/utils/playwright/captura_api.py).
-
-### 5.1 Cómo Funciona:
-1.  Ejecutas el script. Se abrirá Chromium en `https://rpa-site.claro.amx/` ignorando advertencias de SSL.
-2.  Realizas de forma manual en el navegador las acciones que deseas automatizar (por ejemplo, hacer clic en buscar, enviar un formulario, etc.).
-3.  Todas las peticiones AJAX / Fetch quedan registradas en consola.
-4.  Al terminar, presionas **ENTER** en la terminal. El navegador se cerrará limpiamente.
-5.  El script te mostrará una lista numerada con todas las llamadas HTTP capturadas.
-6.  Puedes:
-    *   Ingresar un único número (ej. `3`) para exportar una sola petición.
-    *   Ingresar números separados por comas (ej. `0,3`) para unificar peticiones en un solo script.
-    *   Ingresar rangos (ej. `0-3`) para exportar una secuencia contigua de peticiones.
-
-### 5.2 Exportación Unificada y Encadenamiento de Tokens
-
-Cuando seleccionas múltiples peticiones (ej. `0,3` o `0-3`), `captura_api.py` genera un archivo llamado `flujo_unificado.py` con las siguientes optimizaciones avanzadas:
-
-1.  **Sesión Compartida (`requests.Session()`)**: Todas las llamadas del script se ejecutan dentro del mismo objeto `session`. Esto significa que las cookies de sesión (como identificadores de sesión de login o cookies de balanceadores de carga) se guardan e inyectan automáticamente en las peticiones posteriores, tal como lo haría un navegador web.
-2.  **Vinculación Dinámica de Tokens (Heurística JWT/Bearer)**:
-    *   El motor analiza las cabeceras de autorización (como `Authorization: Bearer <token>`) de cada petición.
-    *   Busca en las respuestas JSON de las peticiones previas si ese token exacto fue devuelto por el servidor (por ejemplo, al resolver el Login).
-    *   Si lo encuentra, en lugar de escribir el token estático (que caducará en minutos), inyecta automáticamente código para extraerlo dinámicamente:
-        `token_dinamico = response_0.json().get('data', {}).get('token')`
-    *   De esta manera, el script generado es **totalmente autónomo y dinámico**: realiza el login, extrae el token en caliente, y lo reutiliza en las llamadas protegidas subsecuentes.
-
-
 ---
 
 ## 6. Ejemplo Práctico: Navegación e Interceptación en Claro RPA Site
