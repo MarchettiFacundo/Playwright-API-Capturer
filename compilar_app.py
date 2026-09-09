@@ -7,10 +7,10 @@ script_dir = os.path.dirname(os.path.abspath(__file__))
 os.chdir(script_dir)
 
 def instalar_dependencias():
-    print("[1/4] Verificando e instalando dependencias (Pillow, pyinstaller, pywin32)...")
+    print("[1/4] Verificando e instalando dependencias (Pillow, pyinstaller, pywin32, ttkbootstrap)...")
     try:
         # Intentamos instalar silenciosamente usando pip
-        subprocess.run([sys.executable, "-m", "pip", "install", "Pillow", "pyinstaller", "pywin32"], check=True)
+        subprocess.run([sys.executable, "-m", "pip", "install", "Pillow", "pyinstaller", "pywin32", "ttkbootstrap"], check=True)
         print("[OK] Dependencias instaladas con éxito.")
     except Exception as e:
         print(f"[ERROR] No se pudieron instalar las dependencias: {e}")
@@ -120,6 +120,13 @@ def generar_splash_personalizado(ruta_salida=os.path.join("assets", "splash.png"
 
 def compilar_ejecutable():
     print("[3/4] Compilando la aplicación con PyInstaller (esto puede tardar de 1 a 2 minutos)...")
+    try:
+        # Cerrar instancias previas si están abiertas para evitar PermissionError [WinError 5]
+        subprocess.run(["taskkill", "/F", "/IM", "Playwright API Capturer.exe", "/T"], 
+                       capture_output=True, text=True)
+    except Exception:
+        pass
+
     try:
         cmd = [
             "pyinstaller",

@@ -31,3 +31,6 @@ automatizacion_dom.py
 .venv/
 venv/
 env/
+
+# Local configuration
+config_gui.json

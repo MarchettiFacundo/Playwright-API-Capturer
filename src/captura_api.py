@@ -36,13 +36,7 @@ from src.generators.dom_generator import (
     generar_reporte_selectores_txt
 )
 
-from src.generators.scraper_generator import (
-    generar_nombre_campo_auto,
-    generar_script_scraping,
-    generar_script_scraping_bs4
-)
-
 from src.capture.cli_interceptor import interceptor_manual
 
 if __name__ == "__main__":
-    interceptor_manual("https://rpa-site.claro.amx/")
+    interceptor_manual("")

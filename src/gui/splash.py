@@ -76,10 +76,7 @@ def cargar_modulos_y_dependencias(progress_callback=None):
             limpiar_headers,
             generar_script_automatizacion_dom,
             generar_lista_selectores_json,
-            generar_reporte_selectores_txt,
-            generar_nombre_campo_auto,
-            generar_script_scraping,
-            generar_script_scraping_bs4
+            generar_reporte_selectores_txt
         )
     except ImportError:
         pass

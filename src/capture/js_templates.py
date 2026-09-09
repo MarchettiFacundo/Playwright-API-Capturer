@@ -163,6 +163,48 @@ JS_SCRIPT = r"""
         return `Elemento <${tag}>${text ? ` "${text}"` : ""}`;
     }
 
+    function obtenerAncestros(el) {
+        let ancestros = [];
+        try {
+            let current = el;
+            let maxNivel = 15;
+            let nivel = 0;
+            while (current && current !== document.documentElement && nivel < maxNivel) {
+                let tag = current.tagName ? current.tagName.toLowerCase() : "";
+                if (!tag) {
+                    current = current.parentElement;
+                    continue;
+                }
+                let idText = current.id ? `#${current.id}` : "";
+                
+                let clasesList = [];
+                if (current.classList && typeof current.classList.forEach === 'function') {
+                    current.classList.forEach(c => {
+                        if (c && typeof c === 'string' && !c.includes("hover") && !c.includes("active")) {
+                            clasesList.push(c);
+                        }
+                    });
+                }
+                let classText = clasesList.length > 0 ? "." + clasesList.join(".") : "";
+                
+                ancestros.push({
+                    tagName: current.tagName,
+                    id: current.id || "",
+                    className: (typeof current.className === "string" ? current.className : ""),
+                    descriptor: `${tag}${idText}${classText}`,
+                    xpath: obtenerXPath(current),
+                    selector_sugerido: obtenerSelectorOptimo(current, 'click'),
+                    esObjetivo: (nivel === 0)
+                });
+                current = current.parentElement;
+                nivel++;
+            }
+        } catch (e) {
+            console.error("Error al obtener ancestros:", e);
+        }
+        return ancestros;
+    }
+
     function enviarAccion(el, tipoAccion, valorOverride) {
         try {
             if (!window.registrarAccionDOM) return;
@@ -189,7 +231,8 @@ JS_SCRIPT = r"""
                 type: el.getAttribute("type") || "",
                 placeholder: el.getAttribute("placeholder") || "",
                 xpath: obtenerXPath(el),
-                outerHTML: el.outerHTML || ""
+                outerHTML: el.outerHTML || "",
+                ancestros: obtenerAncestros(el)
             };
             
             window.registrarAccionDOM(JSON.stringify(datos));
@@ -207,12 +250,12 @@ JS_SCRIPT = r"""
             e.preventDefault();
             e.stopPropagation();
         } else {
-            el = e.target.closest('button, a, input, select, textarea, [role="button"]');
+            el = e.target.closest('button, a, input, select, textarea, [role="button"], [role="combobox"], [role="tab"], [role="treeitem"], [role="gridcell"], [role="row"], [role="menuitem"], [role="link"], [tabindex], [onclick]');
             
             if (!el) {
                 let current = e.target;
                 let depth = 0;
-                while (current && current !== document.body && depth < 4) {
+                while (current && current !== document.body && depth < 5) {
                     let style = window.getComputedStyle(current);
                     if (style && style.cursor === 'pointer') {
                         el = current;
@@ -232,7 +275,8 @@ JS_SCRIPT = r"""
         
         let tag = el.tagName.toLowerCase();
         if (!esExtraccion) {
-            if (tag === "input" && !["button", "submit", "reset", "checkbox", "radio", "image"].includes(el.type)) {
+            let esCombobox = el.getAttribute("role") === "combobox" || (el.className && typeof el.className === "string" && el.className.includes("lsField"));
+            if (tag === "input" && !["button", "submit", "reset", "checkbox", "radio", "image"].includes(el.type) && !esCombobox) {
                 return;
             }
             if (tag === "select" || tag === "textarea") {
@@ -254,6 +298,15 @@ JS_SCRIPT = r"""
             enviarAccion(el, 'fill');
         } else if (tag === "textarea") {
             enviarAccion(el, 'fill');
+        }
+    }, true);
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === 'Tab') {
+            let el = e.target;
+            if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.getAttribute('role') === 'combobox')) {
+                enviarAccion(el, 'key', e.key);
+            }
         }
     }, true);
 

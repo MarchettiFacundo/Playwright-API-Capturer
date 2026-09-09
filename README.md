@@ -163,3 +163,31 @@ En la esquina superior derecha del panel de inspección, se incluyen herramienta
 
 > [!TIP]
 > Al presionar "Ver Trace de Playwright", se abrirá automáticamente la carpeta contenedora con el archivo `trace.zip` para arrastrarlo y soltarlo fácilmente sobre la ventana del visor.
+
+---
+
+## 8. Integración con Playwright Codegen e Inspector
+
+### 8.1. Asistente Visual de Codegen (⚡ Codegen)
+Ubicado en el panel superior de herramientas multimedia, permite ejecutar la herramienta nativa de grabación de código de Playwright:
+- **Selección de Motor**: Chromium, Microsoft Edge, Firefox o WebKit.
+- **Emulación de Dispositivos**: Configuración inmediata para simular dispositivos móviles y tablets (iPhone 14, Pixel 7, iPad Pro 11, etc.).
+- **Targets de Código**: Soporte para Python sincrónico, asincrónico y Pytest.
+- **Exportación Automática**: Guarda el script generado en `.py` y permite importarlo directamente a la tabla de pasos de la aplicación con un solo clic.
+
+### 8.2. Sesión Persistente de Autenticación (`storage_state.json`)
+Para sitios con autenticación de dos factores (2FA), SSO corporativo o desafíos antibot:
+- En **⚙️ Configuración Avanzada**, utiliza el botón **🔑 Grabar Login con Codegen**.
+- Realiza el inicio de sesión manualmente una sola vez. Al cerrar la ventana, las cookies y el almacenamiento local se guardan automáticamente en `storage_state.json`.
+- Todas las capturas posteriores (APIs, DOM o Scraper) y los scripts de Python exportados cargarán automáticamente este estado, evitando repetir el login.
+
+### 8.3. Inspector Playwright en Caliente (🔍 Inspector)
+Durante una captura activa, el botón **🔍 Inspector** activa `page.pause()` en el hilo de Playwright:
+- Abre la barra de herramientas del Inspector nativo para explorar locators y aserciones.
+- La aplicación continúa interceptando peticiones Fetch/XHR y registrando eventos de red en segundo plano. Al reanudar desde el Inspector, la captura sigue con normalidad.
+
+### 8.4. Importador de Scripts de Codegen al Grabador DOM
+En el modo **Grabador DOM (Acciones)**, el botón **📥 Importar Codegen** permite cargar scripts `.py` grabados previamente con `playwright codegen`:
+- Parsea clics, escrituras, selecciones y aserciones (`expect(...).to_be_visible()`).
+- Convierte cada acción en una fila interactiva donde se pueden activar/desactivar pasos, reordenarlos con las flechas y re-exportar con manejo de timeouts, logs y credenciales protegidas.
+

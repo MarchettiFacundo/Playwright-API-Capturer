@@ -150,3 +150,37 @@ def parsear_seleccion(opcion, max_length):
             
     indices_validos.sort()
     return indices_validos
+
+def habilitar_hi_dpi():
+    """Habilita DPI awareness en Windows para evitar renderizado borroso en pantallas escaladas."""
+    try:
+        import ctypes
+        ctypes.windll.shcore.SetProcessDpiAwareness(1)
+    except Exception:
+        try:
+            import ctypes
+            ctypes.windll.user32.SetProcessDPIAware()
+        except Exception:
+            pass
+
+def aplicar_barra_titulo_oscura(ventana, oscuro=True):
+    """Aplica o remueve el tema oscuro nativo en la barra de título de una ventana de Windows 10/11."""
+    try:
+        import ctypes
+        ventana.update_idletasks()
+        hwnd = ctypes.windll.user32.GetParent(ventana.winfo_id()) or ventana.winfo_id()
+        DWMWA_USE_IMMERSIVE_DARK_MODE = 20
+        valor = ctypes.c_int(1 if oscuro else 0)
+        res = ctypes.windll.dwmapi.DwmSetWindowAttribute(
+            hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE,
+            ctypes.byref(valor), ctypes.sizeof(valor)
+        )
+        if res != 0:
+            # En versiones anteriores de Windows 10 (builds 18985 a 19041) se usaba el atributo 19
+            ctypes.windll.dwmapi.DwmSetWindowAttribute(
+                hwnd, 19,
+                ctypes.byref(valor), ctypes.sizeof(valor)
+            )
+    except Exception:
+        pass
+

@@ -8,7 +8,8 @@ from src.capture.js_templates import JS_SCRIPT
 class PlaywrightCaptureThread(threading.Thread):
     def __init__(self, url, output_queue, video_dir="output_videos", trace_file="trace.zip", log_file="debug_playwright.log", 
                  modo="APIs de Red (HTTP)", navegador="Chromium", viewport_width=1280, viewport_height=720, ignore_ssl_errors=True,
-                 headless=False, record_video=True, record_trace=True, timeout=30, user_agent="", usar_cdp=False, puerto_cdp=9222):
+                 headless=False, record_video=True, record_trace=True, timeout=30, user_agent="", usar_cdp=False, puerto_cdp=9222,
+                 storage_state=None):
         super().__init__()
         self.url = url
         self.output_queue = output_queue
@@ -27,6 +28,7 @@ class PlaywrightCaptureThread(threading.Thread):
         self.user_agent = user_agent
         self.usar_cdp = usar_cdp
         self.puerto_cdp = puerto_cdp
+        self.storage_state = storage_state
         self.browser = None
         self.context = None
         self.playwright = None
@@ -66,6 +68,8 @@ class PlaywrightCaptureThread(threading.Thread):
                         context_args["record_video_size"] = {"width": self.viewport_width, "height": self.viewport_height}
                     if self.user_agent and self.user_agent.strip():
                         context_args["user_agent"] = self.user_agent.strip()
+                    if self.storage_state and os.path.exists(self.storage_state):
+                        context_args["storage_state"] = self.storage_state
                     self.context = await self.browser.new_context(**context_args)
             else:
                 self.output_queue.put(("status", "Iniciando Playwright..."))
@@ -87,6 +91,8 @@ class PlaywrightCaptureThread(threading.Thread):
                     context_args["record_video_size"] = {"width": self.viewport_width, "height": self.viewport_height}
                 if self.user_agent and self.user_agent.strip():
                     context_args["user_agent"] = self.user_agent.strip()
+                if self.storage_state and os.path.exists(self.storage_state):
+                    context_args["storage_state"] = self.storage_state
                     
                 self.context = await self.browser.new_context(**context_args)
             
@@ -213,63 +219,12 @@ class PlaywrightCaptureThread(threading.Thread):
                         except Exception:
                             pass
 
-                        if "Scraper" in self.modo:
-                            tipo_accion = datos.get("tipo_accion", "")
-                            datos["fase_scraper"] = "extract" if tipo_accion == "extract" else "setup"
-
                         self.output_queue.put(("accion_dom", datos))
                     except Exception as err:
                         print(f"[WARN] Error parseando JSON de acción DOM: {err}")
 
                 await self.context.expose_binding("registrarAccionDOM", registrar_accion)
                 await self.context.add_init_script(JS_SCRIPT)
-
-                if "Scraper" in self.modo:
-                    async def interceptar_posts_scraper(response):
-                        try:
-                            metodo = response.request.method.upper()
-                            if metodo not in ("POST", "PUT", "PATCH"):
-                                return
-                            url_req = response.url
-                            ext_ignorar = (".css", ".js", ".png", ".jpg", ".jpeg",
-                                           ".svg", ".woff", ".ico", ".gif", ".map")
-                            if any(url_req.split("?")[0].lower().endswith(e) for e in ext_ignorar):
-                                return
-
-                            datos_post = {
-                                "url": url_req,
-                                "metodo": metodo,
-                                "status": response.status,
-                                "request_body": None,
-                                "respuesta": None,
-                            }
-
-                            try:
-                                post_data = response.request.post_data
-                                if post_data:
-                                    try:
-                                        import json as _json
-                                        datos_post["request_body"] = _json.loads(post_data)
-                                    except Exception:
-                                        datos_post["request_body"] = post_data[:1000]
-                            except Exception:
-                                pass
-
-                            if response.ok:
-                                try:
-                                    ct = (await response.header_value("content-type") or "").lower()
-                                    if "json" in ct:
-                                        datos_post["respuesta"] = await response.json()
-                                    else:
-                                        datos_post["respuesta"] = (await response.text())[:800]
-                                except Exception:
-                                    pass
-
-                            self.output_queue.put(("post_red_scraper", datos_post))
-                        except Exception:
-                            pass
-
-                    self.context.on("response", interceptar_posts_scraper)
 
             if self.usar_cdp:
                 if not self.url or not self.url.strip():
@@ -283,18 +238,41 @@ class PlaywrightCaptureThread(threading.Thread):
                 page = await self.context.new_page()
             
             def al_cerrar_pagina():
-                self.output_queue.put(("status", "Página de navegación cerrada por el usuario."))
-                self.stop()
+                if self.context and len(self.context.pages) <= 1:
+                    self.output_queue.put(("status", "Página de navegación cerrada por el usuario."))
+                    self.stop()
                 
             page.on("close", lambda p: al_cerrar_pagina())
+
+            if self.modo == "Grabador DOM (Acciones)":
+                async def inyectar_en_frame(frame):
+                    try:
+                        await frame.evaluate(JS_SCRIPT)
+                    except Exception:
+                        pass
+
+                page.on("framenavigated", lambda f: asyncio.create_task(inyectar_en_frame(f)))
+
+                async def al_abrir_pagina(nueva_p):
+                    try:
+                        nueva_p.on("close", lambda p: al_cerrar_pagina())
+                        nueva_p.on("framenavigated", lambda f: asyncio.create_task(inyectar_en_frame(f)))
+                        try:
+                            await nueva_p.evaluate(JS_SCRIPT)
+                        except Exception:
+                            pass
+                    except Exception:
+                        pass
+
+                self.context.on("page", lambda p: asyncio.create_task(al_abrir_pagina(p)))
+
             
             if self.url and self.url.strip():
                 self.output_queue.put(("status", f"Navegando a {self.url}..."))
                 
-                if self.modo in ("Grabador DOM (Acciones)", "Scraper Visual (DOM)"):
+                if self.modo == "Grabador DOM (Acciones)":
                     nav_data = {
                         "tipo_accion": "navigation",
-                        "fase_scraper": "setup",
                         "tagName": "WINDOW",
                         "descriptor_legible": "Navegación Inicial",
                         "selector_sugerido": "",
@@ -305,37 +283,6 @@ class PlaywrightCaptureThread(threading.Thread):
                         "seleccionado": True, "ruta_iframes": []
                     }
                     self.output_queue.put(("accion_dom", nav_data))
-
-                if "Scraper" in self.modo:
-                    self._last_scraper_url = self.url
-
-                    def on_frame_navigated(frame):
-                        try:
-                            if frame != page.main_frame:
-                                return
-                            new_url = frame.url or ""
-                            if (new_url
-                                    and new_url != "about:blank"
-                                    and not new_url.startswith("data:")
-                                    and new_url != getattr(self, "_last_scraper_url", "")):
-                                self._last_scraper_url = new_url
-                                nav_ev = {
-                                    "tipo_accion": "navigation",
-                                    "fase_scraper": "setup",
-                                    "tagName": "WINDOW",
-                                    "descriptor_legible": f"Navegar a {new_url[:60]}",
-                                    "selector_sugerido": "",
-                                    "valor": new_url,
-                                    "id": "", "name": "", "className": "",
-                                    "type": "", "placeholder": "",
-                                    "xpath": "", "outerHTML": "",
-                                    "seleccionado": True, "ruta_iframes": []
-                                }
-                                self.output_queue.put(("accion_dom", nav_ev))
-                        except Exception:
-                            pass
-
-                    page.on("framenavigated", on_frame_navigated)
 
                 try:
                     await page.goto(self.url, wait_until="domcontentloaded", timeout=20000)
@@ -399,6 +346,16 @@ class PlaywrightCaptureThread(threading.Thread):
                                 print(f"[WARN] Error resaltando: {err}")
                     elif cmd_tipo == "pause":
                         self.paused = cmd_dato
+                    elif cmd_tipo == "abrir_inspector":
+                        if self.context and self.context.pages:
+                            for pg in self.context.pages:
+                                try:
+                                    self.output_queue.put(("status", "Inspector de Playwright abierto. Reanude en la barra del Inspector para continuar."))
+                                    await pg.pause()
+                                    self.output_queue.put(("status", "Inspector reanudado. Captura activa."))
+                                    break
+                                except Exception as insp_err:
+                                    print(f"[WARN] Error al pausar para inspector: {insp_err}")
                 except queue.Empty:
                     pass
                 
