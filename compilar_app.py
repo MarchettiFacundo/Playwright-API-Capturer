@@ -137,6 +137,7 @@ def compilar_ejecutable():
             "--paths=.",
             "--collect-all", "playwright",
             "--collect-all", "ttkbootstrap",
+            "--collect-submodules", "src",
             "--add-data", "assets;assets",
             f"--icon={os.path.join('assets', 'app_icon.ico')}",
             f"--splash={os.path.join('assets', 'splash.png')}",
@@ -292,7 +293,14 @@ def compilar_instalador_inno_setup():
         print("        Puedes compilarlo tú mismo abriendo 'instalador.iss' en Inno Setup.")
         return
         
-    # 4. Ejecutar el compilador sobre instalador.iss
+    # 4. Verificar que el ejecutable exista antes de empaquetar
+    ruta_exe = os.path.join("dist", "Playwright API Capturer.exe")
+    if not os.path.exists(ruta_exe):
+        print(f"[ERROR] No se encontró el ejecutable principal en: {ruta_exe}")
+        print("        Por favor, ejecute la compilación de PyInstaller antes de empaquetar el instalador.")
+        return
+
+    # 5. Ejecutar el compilador sobre instalador.iss
     script_iss = "instalador.iss"
     if not os.path.exists(script_iss):
         print(f"[ERROR] No se encontró el script de Inno Setup: {script_iss}")

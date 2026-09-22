@@ -25,30 +25,9 @@ except ImportError:
 from src.utils.helpers import (
     is_dir_writable,
     get_documents_folder,
-    find_chrome_path,
-    find_edge_path,
-    is_port_in_use,
     obtener_ruta_recurso,
-    limpiar_headers,
-    parsear_seleccion,
     habilitar_hi_dpi,
     aplicar_barra_titulo_oscura
-)
-from src.utils.updater import (
-    VERSION_LOCAL,
-    verificar_actualizaciones,
-    descargar_y_ejecutar_instalador
-)
-from src.capture.js_templates import JS_SCRIPT
-from src.capture.playwright_thread import PlaywrightCaptureThread
-from src.generators.api_generator import (
-    generar_script_unificado,
-    generar_script_python
-)
-from src.generators.dom_generator import (
-    generar_script_automatizacion_dom,
-    generar_lista_selectores_json,
-    generar_reporte_selectores_txt
 )
 from src.gui.splash import SplashWindow, cargar_modulos_y_dependencias
 from src.gui.main_app import CapturaApp
