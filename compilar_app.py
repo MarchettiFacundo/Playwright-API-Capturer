@@ -127,11 +127,36 @@ def compilar_ejecutable():
     except Exception:
         pass
 
+    spec_file = "Playwright API Capturer.spec"
+    if not os.path.exists(spec_file):
+        print(f"[INFO] Archivo de especificación '{spec_file}' no encontrado. Generándolo automáticamente...")
+        cmd_makespec = [
+            sys.executable, "-m", "PyInstaller.utils.cliutils.makespec",
+            "--onefile",
+            "--noconsole",
+            "--paths=.",
+            "--collect-all", "playwright",
+            "--collect-all", "ttkbootstrap",
+            "--add-data", "assets;assets",
+            f"--icon={os.path.join('assets', 'app_icon.ico')}",
+            f"--splash={os.path.join('assets', 'splash.png')}",
+            "--name=Playwright API Capturer",
+            os.path.join("src", "captura_gui.py")
+        ]
+        try:
+            subprocess.run(cmd_makespec, check=True)
+            print("[OK] Archivo de especificación generado exitosamente.")
+        except Exception as e:
+            print(f"[ERROR] Error al generar el archivo de especificación: {e}")
+            sys.exit(1)
+
     try:
         cmd = [
-            "pyinstaller",
+            sys.executable,
+            "-m",
+            "PyInstaller",
             "--clean",
-            "Playwright API Capturer.spec"
+            spec_file
         ]
         # Ejecutar pyinstaller
         subprocess.run(cmd, check=True)

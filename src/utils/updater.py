@@ -6,51 +6,79 @@ import tempfile
 import tkinter as tk
 from tkinter import ttk, messagebox
 
-VERSION_LOCAL = "1.3.0"
+VERSION_LOCAL = "1.3.1"
 
 def verificar_actualizaciones(app_instance, manual=False):
     """Verifica de forma asíncrona si existen actualizaciones en GitHub."""
     def check():
         import urllib.request
-        url_version_remota = "https://raw.githubusercontent.com/MarchettiFacundo/Playwright-API-Capturer/main/version.json"
+        
+        version_remota = None
+        url_descarga = None
+        installer_url = None
+        error_capturado = None
+
+        # 1. Intentar primero con la API oficial de GitHub Releases
         try:
+            url_api = "https://api.github.com/repos/MarchettiFacundo/Playwright-API-Capturer/releases/latest"
             req = urllib.request.Request(
-                url_version_remota, 
-                headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+                url_api, 
+                headers={'User-Agent': f'Playwright-API-Capturer/{VERSION_LOCAL}'}
             )
-            with urllib.request.urlopen(req, timeout=5) as response:
-                data = json.loads(response.read().decode())
-                version_remota = data.get("version")
-                url_descarga = data.get("download_url")
-                installer_url = data.get("installer_url")
-                
-                if version_remota:
-                    try:
-                        v_local_parts = [int(x) for x in VERSION_LOCAL.split('.')]
-                        v_remota_parts = [int(x) for x in version_remota.split('.')]
-                    except ValueError:
-                        v_local_parts = [0]
-                        v_remota_parts = [0]
-                        
-                    if v_remota_parts > v_local_parts:
-                        app_instance.root.after(0, lambda: notificar_actualizacion(version_remota, url_descarga, installer_url))
-                    else:
-                        if manual:
-                            app_instance.root.after(0, lambda: messagebox.showinfo(
-                                "Sin actualizaciones", 
-                                f"Tu aplicación está actualizada a la última versión (v{VERSION_LOCAL})."
-                            ))
-                else:
-                    if manual:
-                        app_instance.root.after(0, lambda: messagebox.showerror(
-                            "Error", 
-                            "No se pudo verificar el archivo de versión remota."
-                        ))
+            with urllib.request.urlopen(req, timeout=10) as response:
+                data = json.loads(response.read().decode("utf-8"))
+                tag = data.get("tag_name", "").strip()
+                version_remota = tag.lstrip("vV")
+                url_descarga = data.get("html_url", "https://github.com/MarchettiFacundo/Playwright-API-Capturer/releases/latest")
+                for asset in data.get("assets", []):
+                    nombre_asset = asset.get("name", "").lower()
+                    if nombre_asset.endswith(".exe"):
+                        installer_url = asset.get("browser_download_url")
+                        if "setup" in nombre_asset:
+                            break
         except Exception as e:
+            error_capturado = e
+
+        # 2. Fallback: intentar con version.json en raw.githubusercontent.com si la API falló
+        if not version_remota:
+            try:
+                url_version_remota = "https://raw.githubusercontent.com/MarchettiFacundo/Playwright-API-Capturer/main/version.json"
+                req = urllib.request.Request(
+                    url_version_remota, 
+                    headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+                )
+                with urllib.request.urlopen(req, timeout=10) as response:
+                    data = json.loads(response.read().decode("utf-8"))
+                    version_remota = data.get("version")
+                    url_descarga = data.get("download_url")
+                    installer_url = data.get("installer_url")
+            except Exception as e:
+                error_capturado = e
+
+        if version_remota:
+            try:
+                v_local_parts = [int(x) for x in VERSION_LOCAL.split('.')]
+                v_remota_parts = [int(x) for x in version_remota.split('.')]
+            except ValueError:
+                v_local_parts = [0]
+                v_remota_parts = [0]
+                
+            if v_remota_parts > v_local_parts:
+                app_instance.root.after(0, lambda: notificar_actualizacion(version_remota, url_descarga, installer_url))
+            else:
+                if manual:
+                    app_instance.root.after(0, lambda: messagebox.showinfo(
+                        "Sin actualizaciones", 
+                        f"Tu aplicación está actualizada a la última versión (v{VERSION_LOCAL})."
+                    ))
+        else:
             if manual:
-                app_instance.root.after(0, lambda: messagebox.showerror(
+                msg = str(error_capturado)
+                if isinstance(error_capturado, TimeoutError) or "timed out" in msg.lower() or msg in ("None", ""):
+                    msg = "Tiempo de espera agotado al conectar con GitHub. Verifique su conexión a Internet o intente más tarde."
+                app_instance.root.after(0, lambda m=msg: messagebox.showerror(
                     "Error de Conexión", 
-                    f"No se pudo conectar al servidor de actualizaciones:\n{e}"
+                    f"No se pudo conectar al servidor de actualizaciones:\n{m}"
                 ))
 
     def notificar_actualizacion(v_remota, url_web, url_installer):

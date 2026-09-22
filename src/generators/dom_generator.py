@@ -1,3 +1,4 @@
+import os
 import json
 
 def resolver_locator_playwright(selector):
@@ -65,7 +66,7 @@ def selector_a_lambda_str(selector_str):
         return f"lambda p: p.get_by_text({repr(val)})"
     return f"lambda p: p.locator({repr(s)})"
 
-def generar_script_automatizacion_dom(acciones_seleccionadas, nombre_archivo="automatizacion_dom.py", parametrizar=False, storage_state="", incluir_trace=False, ruta_trace="trace_automatizacion.zip", modo_resiliente=True):
+def generar_script_automatizacion_dom(acciones_seleccionadas, nombre_archivo="automatizacion_dom.py", parametrizar=False, storage_state="", incluir_trace=False, ruta_trace="trace_automatizacion.zip", modo_resiliente=True, http_user="", http_password=""):
     """
     Genera un script ejecutable de Playwright en Python que automatiza secuencialmente
     las acciones e interacciones grabadas sobre el DOM (clics, ingresos de texto, aserciones, etc.).
@@ -78,7 +79,8 @@ def generar_script_automatizacion_dom(acciones_seleccionadas, nombre_archivo="au
     codigo.append("from playwright.sync_api import sync_playwright, expect")
     codigo.append("import time")
     codigo.append("import re")
-    if parametrizar or es_resiliente:
+    tiene_archivos = any(a.get("tipo_accion") in ("upload", "file_upload", "download") for a in acciones_seleccionadas)
+    if parametrizar or es_resiliente or (http_user and http_password) or tiene_archivos:
         codigo.append("import os")
     codigo.append("")
 
@@ -233,6 +235,36 @@ def generar_script_automatizacion_dom(acciones_seleccionadas, nombre_archivo="au
         codigo.append("                    expect(loc).to_be_visible(timeout=timeout_ms)")
         codigo.append("                elif tipo_accion == 'assert_text':")
         codigo.append("                    expect(loc).to_contain_text(valor or '', timeout=timeout_ms)")
+        codigo.append("                elif tipo_accion in ('upload', 'file_upload'):")
+        codigo.append("                    ruta_archivo = os.path.abspath(valor) if isinstance(valor, str) and valor.strip() else valor")
+        codigo.append("                    if isinstance(ruta_archivo, str) and not os.path.exists(ruta_archivo):")
+        codigo.append("                        print(f'      [ADVERTENCIA] El archivo no fue encontrado en el disco: {ruta_archivo}')")
+        codigo.append("")
+        codigo.append("                    try:")
+        codigo.append("                        with page.expect_file_chooser(timeout=min(timeout_ms, 15000)) as fc_info:")
+        codigo.append("                            loc.click(timeout=timeout_ms)")
+        codigo.append("                        file_chooser = fc_info.value")
+        codigo.append("                        file_chooser.set_files(ruta_archivo)")
+        codigo.append("                        print(f'      [SUBIDA] Archivo cargado exitosamente interceptando file_chooser: {ruta_archivo}')")
+        codigo.append("                    except Exception as exc_fc:")
+        codigo.append("                        # Si el elemento en sí es un <input type=\"file\"> directo:")
+        codigo.append("                        try:")
+        codigo.append("                            loc.set_input_files(ruta_archivo, timeout=timeout_ms)")
+        codigo.append("                            print(f'      [SUBIDA] Archivo asignado directamente al input: {ruta_archivo}')")
+        codigo.append("                        except Exception:")
+        codigo.append("                            raise RuntimeError(f\"Error al cargar archivo en '{desc}': {exc_fc}\")")
+        codigo.append("                elif tipo_accion == 'download':")
+        codigo.append("                    try:")
+        codigo.append("                        with page.expect_download(timeout=min(timeout_ms, 30000)) as dl_info:")
+        codigo.append("                            loc.click(timeout=timeout_ms)")
+        codigo.append("                        download = dl_info.value")
+        codigo.append("                        nombre_destino = valor if valor and str(valor).strip() else download.suggested_filename")
+        codigo.append("                        ruta_destino = os.path.abspath(nombre_destino)")
+        codigo.append("                        os.makedirs(os.path.dirname(ruta_destino), exist_ok=True)")
+        codigo.append("                        download.save_as(ruta_destino)")
+        codigo.append("                        print(f'      [DESCARGA] Archivo descargado exitosamente en: {ruta_destino}')")
+        codigo.append("                    except Exception as exc_dl:")
+        codigo.append("                        raise RuntimeError(f\"Error al descargar archivo en '{desc}': {exc_dl}\")")
         codigo.append("")
         codigo.append("                if i > 0:")
         codigo.append("                    print(f'      [RESILIENTE] Selector primario falló; recuperado exitosamente con respaldo: {sel}')")
@@ -253,10 +285,19 @@ def generar_script_automatizacion_dom(acciones_seleccionadas, nombre_archivo="au
     codigo.append("    with sync_playwright() as p:")
     codigo.append("        # Lanzamos el navegador visible (headless=False) para observar las acciones")
     codigo.append("        browser = p.chromium.launch(headless=False)")
+    ctx_args = ["ignore_https_errors=True"]
     if storage_state and storage_state.strip():
-        codigo.append(f"        context = browser.new_context(ignore_https_errors=True, storage_state={repr(storage_state.strip())})")
-    else:
-        codigo.append("        context = browser.new_context(ignore_https_errors=True)")
+        ctx_args.append(f"storage_state={repr(storage_state.strip())}")
+    
+    if http_user and http_password:
+        if parametrizar:
+            codigo.append(f'        _http_u = os.environ.get("HTTP_USER", {repr(http_user.strip())})')
+            codigo.append(f'        _http_p = os.environ.get("HTTP_PASS", {repr(http_password.strip())})')
+            ctx_args.append('http_credentials={"username": _http_u, "password": _http_p}')
+        else:
+            ctx_args.append(f'http_credentials={{"username": {repr(http_user.strip())}, "password": {repr(http_password.strip())}}}')
+            
+    codigo.append(f"        context = browser.new_context({', '.join(ctx_args)})")
     if incluir_trace:
         codigo.append("        # Habilitamos el registro de trazas detalladas (Playwright Trace Viewer)")
         codigo.append("        context.tracing.start(screenshots=True, snapshots=True, sources=True)")
@@ -392,6 +433,22 @@ def generar_script_automatizacion_dom(acciones_seleccionadas, nombre_archivo="au
                 codigo.append(f"        # Credencial sensible parametrizada en variables de entorno")
                 codigo.append(f"        valor_input = os.environ.get({repr(var_name)}, {repr(valor)})")
                 codigo.append(f"        print({repr(f'[PASO] Escribir credencial protegida ({var_name}) en: {desc}')})")
+            elif parametrizar and tipo in ("upload", "file_upload"):
+                var_name = f"RPA_FILE_{idx + 1}"
+                codigo.append(f"        # Ruta de archivo parametrizada en variables de entorno")
+                codigo.append(f"        valor_input = os.environ.get({repr(var_name)}, {repr(valor)})")
+                codigo.append(f"        print({repr(f'[PASO] Subir archivo ({var_name}) en: {desc}')})")
+            elif parametrizar and tipo == "download":
+                var_name = f"RPA_DOWNLOAD_{idx + 1}"
+                codigo.append(f"        # Ruta o nombre de descarga parametrizado en variables de entorno")
+                codigo.append(f"        valor_input = os.environ.get({repr(var_name)}, {repr(valor)})")
+                codigo.append(f"        print({repr(f'[PASO] Descargar archivo ({var_name}) en: {desc}')})")
+            elif tipo in ("upload", "file_upload"):
+                codigo.append(f"        valor_input = {repr(valor)}")
+                codigo.append(f"        print({repr(f'[PASO] Subir archivo \"{valor}\" en: {desc}')})")
+            elif tipo == "download":
+                codigo.append(f"        valor_input = {repr(valor)}")
+                codigo.append(f"        print({repr(f'[PASO] Descargar archivo en: {desc}')})")
             else:
                 codigo.append(f"        valor_input = {repr(valor)}")
                 codigo.append(f"        print({repr(f'[PASO] Ejecutar {tipo} en: {desc}')})")
@@ -489,6 +546,47 @@ def generar_script_automatizacion_dom(acciones_seleccionadas, nombre_archivo="au
                     codigo.append("        texto_extraido = _raw_val")
                 codigo.append(f"        variables['var_{idx + 1}'] = texto_extraido")
                 codigo.append(f"        print(f'[RESULTADO] Texto obtenido: {{texto_extraido}}')")
+            elif tipo in ("upload", "file_upload"):
+                if parametrizar:
+                    var_name = f"RPA_FILE_{idx + 1}"
+                    codigo.append(f"        valor_input = os.environ.get({repr(var_name)}, {repr(valor)})")
+                    codigo.append(f"        print({repr(f'[PASO] Subir archivo ({var_name}) en: {desc}')})")
+                else:
+                    codigo.append(f"        valor_input = {repr(valor)}")
+                    codigo.append(f"        print({repr(f'[PASO] Subir archivo \"{valor}\" en: {desc}')})")
+                codigo.append("        ruta_archivo = os.path.abspath(valor_input) if valor_input and str(valor_input).strip() else valor_input")
+                codigo.append("        if isinstance(ruta_archivo, str) and not os.path.exists(ruta_archivo):")
+                codigo.append("            print(f'      [ADVERTENCIA] El archivo no fue encontrado en el disco: {ruta_archivo}')")
+                codigo.append("        try:")
+                codigo.append(f"            with page.expect_file_chooser(timeout=min({timeout_val}, 15000)) as fc_info:")
+                codigo.append(f"                {locator_str}.first.click()")
+                codigo.append("            fc_info.value.set_files(ruta_archivo)")
+                codigo.append("            print(f'      [SUBIDA] Archivo cargado exitosamente interceptando file_chooser: {ruta_archivo}')")
+                codigo.append("        except Exception as exc_fc:")
+                codigo.append("            try:")
+                codigo.append(f"                {locator_str}.first.set_input_files(ruta_archivo)")
+                codigo.append("                print(f'      [SUBIDA] Archivo asignado directamente al input: {ruta_archivo}')")
+                codigo.append("            except Exception:")
+                codigo.append(f"                raise RuntimeError(f\"Error al cargar archivo en '{desc}': {{exc_fc}}\")")
+            elif tipo == "download":
+                if parametrizar:
+                    var_name = f"RPA_DOWNLOAD_{idx + 1}"
+                    codigo.append(f"        valor_input = os.environ.get({repr(var_name)}, {repr(valor)})")
+                    codigo.append(f"        print({repr(f'[PASO] Descargar archivo ({var_name}) en: {desc}')})")
+                else:
+                    codigo.append(f"        valor_input = {repr(valor)}")
+                    codigo.append(f"        print({repr(f'[PASO] Descargar archivo en: {desc}')})")
+                codigo.append("        try:")
+                codigo.append(f"            with page.expect_download(timeout=min({timeout_val}, 30000)) as dl_info:")
+                codigo.append(f"                {locator_str}.first.click()")
+                codigo.append("            download = dl_info.value")
+                codigo.append("            nombre_destino = valor_input if valor_input and str(valor_input).strip() else download.suggested_filename")
+                codigo.append("            ruta_destino = os.path.abspath(nombre_destino)")
+                codigo.append("            os.makedirs(os.path.dirname(ruta_destino), exist_ok=True)")
+                codigo.append("            download.save_as(ruta_destino)")
+                codigo.append("            print(f'      [DESCARGA] Archivo descargado exitosamente en: {ruta_destino}')")
+                codigo.append("        except Exception as exc_dl:")
+                codigo.append(f"            raise RuntimeError(f\"Error al descargar archivo en '{desc}': {{exc_dl}}\")")
         
         codigo.append("        time.sleep(0.5)  # Breve pausa para estabilidad visual")
         codigo.append("")
@@ -515,6 +613,10 @@ def generar_script_automatizacion_dom(acciones_seleccionadas, nombre_archivo="au
     
     contenido_codigo = "\n".join(codigo)
     
+    dir_padre = os.path.dirname(nombre_archivo)
+    if dir_padre:
+        os.makedirs(dir_padre, exist_ok=True)
+        
     with open(nombre_archivo, "w", encoding="utf-8") as f:
         f.write(contenido_codigo)
         
@@ -551,7 +653,10 @@ def generar_reporte_selectores_txt(acciones_seleccionadas, nombre_archivo="repor
             "click": "Hacer clic",
             "fill": "Escribir texto",
             "select": "Seleccionar opción",
-            "navigation": "Navegar a URL"
+            "navigation": "Navegar a URL",
+            "upload": "Subir archivo",
+            "file_upload": "Subir archivo",
+            "download": "Descargar archivo"
         }
         accion_nombre = tipo_map.get(tipo, tipo.capitalize())
         

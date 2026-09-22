@@ -193,10 +193,71 @@ def parsear_script_codegen(contenido_o_ruta: str) -> List[Dict[str, Any]]:
         lineas = contenido_o_ruta.splitlines()
 
     acciones = []
+    bloque_contexto = None
 
     for linea in lineas:
         l = linea.strip()
         if not l or l.startswith("#") or l.startswith("import ") or l.startswith("from "):
+            continue
+
+        # Detección de bloques context manager
+        if "expect_file_chooser()" in l:
+            bloque_contexto = "file_chooser"
+            continue
+        if "expect_download()" in l:
+            bloque_contexto = "download"
+            continue
+
+        # Asignación diferida de archivo cargado: file_chooser.set_files(...)
+        m_set_files = re.search(r'(?:file_chooser|fc_info\.value|\w+)\.set_files\((.*?)\)', l)
+        if m_set_files:
+            raw_args = m_set_files.group(1).strip()
+            m_val = re.search(r'["\'](.*?)["\']', raw_args)
+            val = m_val.group(1) if m_val else raw_args
+            if acciones and acciones[-1].get("tipo_accion") == "upload":
+                acciones[-1]["valor"] = val
+                desc_base = acciones[-1]["descriptor_legible"].split(" en ")[-1] if " en " in acciones[-1]["descriptor_legible"] else acciones[-1]["descriptor_legible"]
+                acciones[-1]["descriptor_legible"] = f"Subir archivo '{val}' en {desc_base}"
+            bloque_contexto = None
+            continue
+
+        # Asignación diferida de archivo descargado: download.save_as(...)
+        m_save_as = re.search(r'(?:download|download_info\.value|\w+)\.save_as\((.*?)\)', l)
+        if m_save_as:
+            raw_args = m_save_as.group(1).strip()
+            m_val = re.search(r'["\'](.*?)["\']', raw_args)
+            val = m_val.group(1) if m_val else raw_args
+            if acciones and acciones[-1].get("tipo_accion") == "download":
+                acciones[-1]["valor"] = val
+                desc_base = acciones[-1]["descriptor_legible"].split(" en ")[-1] if " en " in acciones[-1]["descriptor_legible"] else acciones[-1]["descriptor_legible"]
+                acciones[-1]["descriptor_legible"] = f"Descargar archivo '{val}' en {desc_base}"
+            bloque_contexto = None
+            continue
+
+        # Subida directa: page....set_input_files(...)
+        m_upload = re.search(r'(page\..+?)\.set_input_files\((.*?)\)', l)
+        if m_upload:
+            loc_raw = m_upload.group(1).strip()
+            raw_args = m_upload.group(2).strip()
+            m_val = re.search(r'["\'](.*?)["\']', raw_args)
+            val = m_val.group(1) if m_val else raw_args
+            r_iframes, loc = descomponer_locator_iframe(loc_raw)
+            desc = simplificar_locator(loc)
+            if r_iframes:
+                desc = f"[{' -> '.join(r_iframes)}] {desc}"
+            acciones.append({
+                "tipo_accion": "upload",
+                "fase_scraper": "setup",
+                "tagName": "INPUT",
+                "descriptor_legible": f"Subir archivo '{val}' en {desc}" if val else f"Subir archivo en {desc}",
+                "selector_sugerido": loc,
+                "valor": val,
+                "id": "", "name": "", "className": "",
+                "type": "file", "placeholder": "",
+                "xpath": "", "outerHTML": "",
+                "seleccionado": True,
+                "ruta_iframes": r_iframes
+            })
             continue
 
         # 1. Navegación: page.goto("url")
@@ -218,7 +279,7 @@ def parsear_script_codegen(contenido_o_ruta: str) -> List[Dict[str, Any]]:
             })
             continue
 
-        # 2. Clic: page....click()
+        # 2. Clic / Upload / Download: page....click()
         m_click = re.search(r'(page\..+?)\.click\(', l)
         if m_click:
             loc_raw = m_click.group(1).strip()
@@ -226,15 +287,29 @@ def parsear_script_codegen(contenido_o_ruta: str) -> List[Dict[str, Any]]:
             desc = simplificar_locator(loc)
             if r_iframes:
                 desc = f"[{' -> '.join(r_iframes)}] {desc}"
+
+            if bloque_contexto == "file_chooser":
+                accion_tipo = "upload"
+                desc_legible = f"Subir archivo en {desc}"
+                tag_tipo = "file"
+            elif bloque_contexto == "download":
+                accion_tipo = "download"
+                desc_legible = f"Descargar archivo en {desc}"
+                tag_tipo = ""
+            else:
+                accion_tipo = "click"
+                desc_legible = f"Clic en {desc}"
+                tag_tipo = ""
+
             acciones.append({
-                "tipo_accion": "click",
+                "tipo_accion": accion_tipo,
                 "fase_scraper": "setup",
-                "tagName": "ELEMENT",
-                "descriptor_legible": f"Clic en {desc}",
+                "tagName": "INPUT" if accion_tipo == "upload" else "ELEMENT",
+                "descriptor_legible": desc_legible,
                 "selector_sugerido": loc,
                 "valor": "",
                 "id": "", "name": "", "className": "",
-                "type": "", "placeholder": "",
+                "type": tag_tipo, "placeholder": "",
                 "xpath": "", "outerHTML": "",
                 "seleccionado": True,
                 "ruta_iframes": r_iframes

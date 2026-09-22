@@ -86,6 +86,8 @@ class CapturaApp:
         self.config_usar_cdp = tk.BooleanVar(value=False)
         self.config_puerto_cdp = tk.StringVar(value="9222")
         self.config_storage_state = tk.StringVar(value="")
+        self.config_http_user = tk.StringVar(value="")
+        self.config_http_pass = tk.StringVar(value="")
         self.config_trace_en_codigo = tk.BooleanVar(value=False)
         self.codegen_process = None
         
@@ -229,6 +231,10 @@ class CapturaApp:
                 self.config_usar_cdp.set(bool(cfg["usar_cdp"]))
             if "puerto_cdp" in cfg:
                 self.config_puerto_cdp.set(str(cfg["puerto_cdp"]))
+            if "http_user" in cfg:
+                self.config_http_user.set(str(cfg["http_user"]))
+            if "http_pass" in cfg:
+                self.config_http_pass.set(str(cfg["http_pass"]))
         except Exception as ex:
             print(f"[WARN] Error al cargar config_gui.json: {ex}")
 
@@ -248,7 +254,9 @@ class CapturaApp:
                 "storage_state": self.config_storage_state.get(),
                 "user_agent": self.config_user_agent.get(),
                 "usar_cdp": self.config_usar_cdp.get(),
-                "puerto_cdp": self.config_puerto_cdp.get()
+                "puerto_cdp": self.config_puerto_cdp.get(),
+                "http_user": self.config_http_user.get(),
+                "http_pass": self.config_http_pass.get()
             }
             os.makedirs(os.path.dirname(self.archivo_config_gui), exist_ok=True)
             with open(self.archivo_config_gui, "w", encoding="utf-8") as f:
@@ -984,7 +992,9 @@ class CapturaApp:
             user_agent=self.config_user_agent.get(),
             usar_cdp=self.config_usar_cdp.get(),
             puerto_cdp=puerto_cdp_val,
-            storage_state=st_state
+            storage_state=st_state,
+            http_user=self.config_http_user.get().strip(),
+            http_password=self.config_http_pass.get().strip()
         )
         self.capture_thread.start()
 
@@ -1214,7 +1224,10 @@ class CapturaApp:
                                     "fill": "Escribir ⌨️",
                                     "select": "Seleccionar 📋",
                                     "navigation": "Ir a URL 🌐",
-                                    "extract": "Extraer Texto 🔍"
+                                    "extract": "Extraer Texto 🔍",
+                                    "upload": "Subir Archivo 📤",
+                                    "file_upload": "Subir Archivo 📤",
+                                    "download": "Descargar Archivo 📥"
                                 }
                                 accion_legible = tipo_map.get(self.peticiones_capturadas[idx]["tipo_accion"], self.peticiones_capturadas[idx]["tipo_accion"].capitalize())
                                 val_check = "☑" if self.peticiones_capturadas[idx].get("seleccionado", True) else "☐"
@@ -1232,6 +1245,9 @@ class CapturaApp:
                                 "assert_visible": "Validar Visible 👁️",
                                 "assert_text": "Validar Texto 🔤",
                                 "key": "Presionar Tecla ⌨️",
+                                "upload": "Subir Archivo 📤",
+                                "file_upload": "Subir Archivo 📤",
+                                "download": "Descargar Archivo 📥"
                             }
                             accion_legible = tipo_map.get(dato["tipo_accion"], dato["tipo_accion"].capitalize())
                             val_check = "☑" if dato.get("seleccionado", True) else "☐"
@@ -1289,6 +1305,9 @@ class CapturaApp:
                     "assert_visible": "Validar Visible 👁️",
                     "assert_text": "Validar Texto 🔤",
                     "key": "Presionar Tecla ⌨️",
+                    "upload": "Subir Archivo 📤",
+                    "file_upload": "Subir Archivo 📤",
+                    "download": "Descargar Archivo 📥"
                 }
                 accion_legible = tipo_map.get(pet.get("tipo_accion"), str(pet.get("tipo_accion", "")).capitalize())
                 self.tabla.insert(
@@ -1485,7 +1504,9 @@ class CapturaApp:
                 ("🖱️ Click (click)", "click"),
                 ("⌨️ Escribir (fill)", "fill"),
                 ("📋 Seleccionar (select)", "select"),
-                ("⌨️ Presionar Tecla (key)", "key")
+                ("⌨️ Presionar Tecla (key)", "key"),
+                ("📤 Subir Archivo (upload)", "upload"),
+                ("📥 Descargar Archivo (download)", "download")
             ]
             for etiqueta, cod_tipo in acciones_rapidas:
                 def _crear_cambio(t=cod_tipo):
@@ -2054,6 +2075,8 @@ class CapturaApp:
                 values=[
                     "click",
                     "fill",
+                    "upload",
+                    "download",
                     "extract",
                     "assert_text",
                     "assert_visible",
@@ -2079,15 +2102,38 @@ class CapturaApp:
             entry_sel.grid(row=2, column=1, sticky="ew", pady=5, padx=5)
             entries["selector_sugerido"] = entry_sel
             
-            ttk.Label(frame_form, text="Valor / Filtro Regex:").grid(row=3, column=0, sticky="w", pady=5, padx=5)
-            entry_val = ttk.Entry(frame_form, font=("Segoe UI", 10))
+            ttk.Label(frame_form, text="Valor / Archivo / Regex:").grid(row=3, column=0, sticky="w", pady=5, padx=5)
+            frame_val_box = ttk.Frame(frame_form)
+            frame_val_box.grid(row=3, column=1, sticky="ew", pady=5, padx=5)
+            frame_val_box.columnconfigure(0, weight=1)
+
+            entry_val = ttk.Entry(frame_val_box, font=("Segoe UI", 10))
             entry_val.insert(0, pet.get("valor", ""))
-            entry_val.grid(row=3, column=1, sticky="ew", pady=5, padx=5)
+            entry_val.grid(row=0, column=0, sticky="ew")
             entries["valor"] = entry_val
+
+            def examinar_archivo():
+                t_actual = combo_tipo.get()
+                if t_actual == "download":
+                    ruta = filedialog.asksaveasfilename(
+                        title="Seleccionar archivo destino para descarga",
+                        initialfile=entry_val.get().strip()
+                    )
+                else:
+                    ruta = filedialog.askopenfilename(
+                        title="Seleccionar archivo para subir"
+                    )
+                if ruta:
+                    entry_val.delete(0, tk.END)
+                    entry_val.insert(0, ruta)
+
+            btn_examinar = ttk.Button(frame_val_box, text="📁 Examinar...", command=examinar_archivo)
+            btn_examinar.grid(row=0, column=1, padx=(5, 0))
 
             lbl_hint = ttk.Label(
                 frame_form,
-                text="💡 Para extracción: escribe una etiqueta (ej. 'Hora', 'Fecha'), un regex (ej. r'\\d{2}:\\d{2}:\\d{2}') o déjalo vacío para extraer todo.",
+                text="💡 Upload: ruta del archivo a subir. Download: ruta o nombre de guardado (o vacío para el sugerido).\n"
+                     "💡 Extracción: escribe etiqueta (ej. 'Hora'), regex (ej. r'\\d{2}:\\d{2}') o vacío para todo el texto.",
                 font=("Segoe UI", 8),
                 foreground="#94a3b8"
             )
@@ -2375,7 +2421,9 @@ class CapturaApp:
                         parametrizar=self.var_parametrizar.get(),
                         storage_state=self.config_storage_state.get().strip(),
                         incluir_trace=self.config_trace_en_codigo.get(),
-                        modo_resiliente=var_modo_resiliente.get()
+                        modo_resiliente=var_modo_resiliente.get(),
+                        http_user=self.config_http_user.get().strip(),
+                        http_password=self.config_http_pass.get().strip()
                     )
                 elif opcion == "json":
                     generar_lista_selectores_json(acciones, nombre_archivo=nombre_archivo)
@@ -3071,6 +3119,32 @@ class CapturaApp:
 
         btn_login = tb.Button(auth_frame, text="🔑 Grabar Login con Codegen", command=grabar_login_rapido, bootstyle="info-outline")
         btn_login.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(5, 0))
+
+        # ----------------------------------------------------
+        # SECCIÓN: AUTENTICACIÓN HTTP / NTLM
+        # ----------------------------------------------------
+        http_frame = ttk.LabelFrame(main_frame, text="Credenciales HTTP / NTLM (Autenticación de Red / Basic)", padding=10)
+        http_frame.pack(fill="x", pady=5)
+        http_frame.columnconfigure(1, weight=1)
+
+        lbl_u = ttk.Label(http_frame, text="Usuario:")
+        lbl_u.grid(row=0, column=0, sticky="w", pady=4, padx=(0, 10))
+        entry_u = ttk.Entry(http_frame, textvariable=self.config_http_user, font=("Segoe UI", 9))
+        entry_u.grid(row=0, column=1, sticky="ew", pady=4)
+
+        lbl_p = ttk.Label(http_frame, text="Contraseña:")
+        lbl_p.grid(row=1, column=0, sticky="w", pady=4, padx=(0, 10))
+        entry_p = ttk.Entry(http_frame, textvariable=self.config_http_pass, show="*", font=("Segoe UI", 9))
+        entry_p.grid(row=1, column=1, sticky="ew", pady=4)
+
+        lbl_http_hint = ttk.Label(
+            http_frame,
+            text="💡 Se usan para responder automáticamente al desafío 401 (ej. Claro SiteMinder/NTLM) e inyectar http_credentials en los scripts generados.",
+            style="Status.TLabel",
+            font=("Segoe UI", 8, "italic"),
+            wraplength=480
+        )
+        lbl_http_hint.grid(row=2, column=0, columnspan=2, sticky="w", pady=(4, 0))
 
         ua_frame = ttk.LabelFrame(main_frame, text="User-Agent Personalizado (Opcional)", padding=10)
         ua_frame.pack(fill="x", pady=5)

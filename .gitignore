@@ -8,6 +8,7 @@ __pycache__/
 build/
 dist/
 *.spec
+!Playwright API Capturer.spec
 
 # Playwright generated files & logs
 output_videos/

@@ -9,7 +9,7 @@ class PlaywrightCaptureThread(threading.Thread):
     def __init__(self, url, output_queue, video_dir="output_videos", trace_file="trace.zip", log_file="debug_playwright.log", 
                  modo="APIs de Red (HTTP)", navegador="Chromium", viewport_width=1280, viewport_height=720, ignore_ssl_errors=True,
                  headless=False, record_video=True, record_trace=True, timeout=30, user_agent="", usar_cdp=False, puerto_cdp=9222,
-                 storage_state=None):
+                 storage_state=None, http_user="", http_password=""):
         super().__init__()
         self.url = url
         self.output_queue = output_queue
@@ -29,6 +29,8 @@ class PlaywrightCaptureThread(threading.Thread):
         self.usar_cdp = usar_cdp
         self.puerto_cdp = puerto_cdp
         self.storage_state = storage_state
+        self.http_user = http_user
+        self.http_password = http_password
         self.browser = None
         self.context = None
         self.playwright = None
@@ -70,6 +72,11 @@ class PlaywrightCaptureThread(threading.Thread):
                         context_args["user_agent"] = self.user_agent.strip()
                     if self.storage_state and os.path.exists(self.storage_state):
                         context_args["storage_state"] = self.storage_state
+                    if self.http_user and self.http_password:
+                        context_args["http_credentials"] = {
+                            "username": self.http_user.strip(),
+                            "password": self.http_password.strip()
+                        }
                     self.context = await self.browser.new_context(**context_args)
             else:
                 self.output_queue.put(("status", "Iniciando Playwright..."))
@@ -93,6 +100,11 @@ class PlaywrightCaptureThread(threading.Thread):
                     context_args["user_agent"] = self.user_agent.strip()
                 if self.storage_state and os.path.exists(self.storage_state):
                     context_args["storage_state"] = self.storage_state
+                if self.http_user and self.http_password:
+                    context_args["http_credentials"] = {
+                        "username": self.http_user.strip(),
+                        "password": self.http_password.strip()
+                    }
                     
                 self.context = await self.browser.new_context(**context_args)
             
@@ -106,7 +118,9 @@ class PlaywrightCaptureThread(threading.Thread):
                 async def interceptar_respuesta(response):
                     if self.paused:
                         return
-                    if response.request.resource_type in ["fetch", "xhr"]:
+                    es_api = response.request.resource_type in ["fetch", "xhr"]
+                    es_doc_post = response.request.resource_type == "document" and response.request.method == "POST"
+                    if es_api or es_doc_post:
                         request = response.request
                         if request.method == "OPTIONS":
                             return
@@ -245,6 +259,15 @@ class PlaywrightCaptureThread(threading.Thread):
             page.on("close", lambda p: al_cerrar_pagina())
 
             if self.modo == "Grabador DOM (Acciones)":
+                def al_detectar_descarga(download):
+                    try:
+                        nombre = download.suggested_filename
+                        self.output_queue.put(("status", f"Descarga iniciada: {nombre}"))
+                    except Exception:
+                        pass
+
+                page.on("download", al_detectar_descarga)
+
                 async def inyectar_en_frame(frame):
                     try:
                         await frame.evaluate(JS_SCRIPT)
@@ -256,6 +279,7 @@ class PlaywrightCaptureThread(threading.Thread):
                 async def al_abrir_pagina(nueva_p):
                     try:
                         nueva_p.on("close", lambda p: al_cerrar_pagina())
+                        nueva_p.on("download", al_detectar_descarga)
                         nueva_p.on("framenavigated", lambda f: asyncio.create_task(inyectar_en_frame(f)))
                         try:
                             await nueva_p.evaluate(JS_SCRIPT)

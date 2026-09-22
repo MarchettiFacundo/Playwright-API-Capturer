@@ -398,6 +398,30 @@ def enriquecer_pasos_dom(
                         accion["valor"] = locator_valido.inner_text(timeout=timeout_paso).strip()
                     except Exception:
                         pass
+                elif tipo in ("upload", "file_upload"):
+                    ruta_archivo = valor
+                    if isinstance(ruta_archivo, str) and ruta_archivo.strip():
+                        import os
+                        ruta_archivo = os.path.abspath(ruta_archivo.strip())
+                    try:
+                        with page.expect_file_chooser(timeout=min(timeout_paso, 5000)) as fc_info:
+                            locator_valido.click(timeout=timeout_paso)
+                        if ruta_archivo and isinstance(ruta_archivo, str) and os.path.exists(ruta_archivo):
+                            fc_info.value.set_files(ruta_archivo)
+                    except Exception:
+                        if ruta_archivo and isinstance(ruta_archivo, str) and os.path.exists(ruta_archivo):
+                            try:
+                                locator_valido.set_input_files(ruta_archivo, timeout=timeout_paso)
+                            except Exception:
+                                pass
+                elif tipo == "download":
+                    try:
+                        with page.expect_download(timeout=min(timeout_paso, 10000)) as dl_info:
+                            locator_valido.click(timeout=timeout_paso)
+                        if not valor:
+                            accion["valor"] = dl_info.value.suggested_filename
+                    except Exception:
+                        pass
 
                 # Pausas y sincronizaciones adaptativas para SAP ITS
                 es_login_click = tipo == "click" and any(k in desc.lower() for k in ["acceder", "login", "logon", "ingresar"])

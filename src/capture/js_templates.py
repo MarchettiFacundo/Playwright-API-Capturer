@@ -135,6 +135,9 @@ JS_SCRIPT = r"""
         if (tag === "input") {
             let type = el.getAttribute("type") || "text";
             let desc = el.id || el.name || el.getAttribute("placeholder") || "";
+            if (type === "file") {
+                return `Subida de archivo${desc ? ` "${desc}"` : ""}`;
+            }
             return `Campo ${type}${desc ? ` "${desc}"` : ""}`;
         }
         if (tag === "select") {
@@ -316,6 +319,9 @@ JS_SCRIPT = r"""
         if (tag === "select") {
             let seleccion = el.options[el.selectedIndex].text;
             enviarAccion(el, 'select', seleccion);
+        } else if (tag === "input" && el.type === "file") {
+            let fileName = (el.files && el.files.length > 0) ? el.files[0].name : (el.value || "");
+            enviarAccion(el, 'upload', fileName);
         }
     }, true);
 })();
