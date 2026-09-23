@@ -69,29 +69,80 @@ def parsear_elemento_devtools(html_crudo: str) -> Dict[str, Any]:
     sap_sid = ""
     sap_field_id = ""
     sap_type = ""
+    sap_slow_id = ""
     sap_coord = None
+    es_modal_wnd1 = False
+
     lsdata_raw = attrs.get("lsdata", "")
+    lsdata_unescaped = ""
     if lsdata_raw:
         try:
             lsdata_unescaped = html.unescape(lsdata_raw)
-            lsdata_dict = json.loads(lsdata_unescaped)
-            sap_field_id = str(lsdata_dict.get("3", "")).strip()
-            data_21 = lsdata_dict.get("21", "")
-            if isinstance(data_21, str) and "{" in data_21:
-                data_21_dict = json.loads(data_21)
-                sap_sid = data_21_dict.get("SID", "")
-                sap_type = data_21_dict.get("Type", "")
-            elif isinstance(data_21, dict):
-                sap_sid = data_21.get("SID", "")
-                sap_type = data_21.get("Type", "")
+            try:
+                lsdata_dict = json.loads(lsdata_unescaped)
+            except Exception:
+                lsdata_dict = {}
+
+            if isinstance(lsdata_dict, dict):
+                sap_field_id = str(lsdata_dict.get("3", "")).strip()
+                sap_sid = lsdata_dict.get("SID", "")
+                data_21 = lsdata_dict.get("21", "")
+                if isinstance(data_21, str) and "{" in data_21:
+                    try:
+                        d21 = json.loads(data_21)
+                        if not sap_sid:
+                            sap_sid = d21.get("SID", "")
+                        sap_type = d21.get("Type", "")
+                    except Exception:
+                        pass
+                elif isinstance(data_21, dict):
+                    if not sap_sid:
+                        sap_sid = data_21.get("SID", "")
+                    sap_type = data_21.get("Type", "")
         except Exception:
             pass
 
+        # Fallback con expresiones regulares sobre lsdata_unescaped
+        if not sap_sid and lsdata_unescaped:
+            m_sid = re.search(r'["\']?SID["\']?\s*:\s*["\']([^"\']+)["\']', lsdata_unescaped)
+            if m_sid:
+                sap_sid = m_sid.group(1)
+
+        # Extraer identificador técnico de campo ABAP (ej: SLOW_I[1,0]) de SID o de lsdata
+        if sap_sid:
+            m_slow = re.search(r'(SLOW_[A-Z0-9_]+\[\d+,\d+\])', sap_sid)
+            if m_slow:
+                sap_slow_id = m_slow.group(1)
+            else:
+                partes_sid = sap_sid.split("/")
+                if partes_sid:
+                    ultima = partes_sid[-1]
+                    if "-" in ultima:
+                        sap_slow_id = ultima.split("-")[-1]
+                    else:
+                        sap_slow_id = ultima
+        elif lsdata_unescaped:
+            m_slow = re.search(r'(SLOW_[A-Z0-9_]+\[\d+,\d+\])', lsdata_unescaped)
+            if m_slow:
+                sap_slow_id = m_slow.group(1)
+
+    # Detección de ventana modal wnd[1] vs ventana principal wnd[0]
+    if "wnd[1]" in sap_sid or elem_id.startswith("M1:"):
+        es_modal_wnd1 = True
+
     # 3. Detección de coordenadas de tabla SAP: [fila,columna]
-    # Puede estar en el ID (ej: tbl112[1,2]_c) o en el SID de SAP
+    # Puede estar en el ID (ej: tbl112[1,2]_c), en sap_slow_id o en el SID de SAP
     match_coord = re.search(r'\[(\d+,\d+)\](_c)?', elem_id)
+    if not match_coord and sap_slow_id:
+        match_coord = re.search(r'\[(\d+,\d+)\]', sap_slow_id)
     if not match_coord and sap_sid:
         match_coord = re.search(r'\[(\d+,\d+)\]', sap_sid)
+
+    CLASES_GENERICAS_SAP = {
+        'lsfield__input', 'lsfield', 'lsfield__subinput', 'lsbutton', 
+        'lsbutton--base', 'lsbutton--design-standard', 'lscontrol', 
+        'lscontrol--explicitheight', 'lscontrol--valigntop', 'lscontrol--valignmiddle'
+    }
 
     # 4. Generación algorítmica de selectores candidatos resilientes
     selectores = []
@@ -99,35 +150,65 @@ def parsear_elemento_devtools(html_crudo: str) -> Dict[str, Any]:
     # A. Coordenadas de celdas SAP (Prioridad Máxima por resiliencia frente a cambios de prefijo de tabla)
     if match_coord:
         coord = match_coord.group(1)
-        sufijo = match_coord.group(2) or ""
         sap_coord = coord
         
-        # 1. Selector de celda/input con tag y sufijo: input[id*="[1,2]_c"]
+        # 1. Selector de input con coordenadas exactas de celda: input[id*="[1,2]_c"]
         if tag in ("input", "textarea", "select"):
-            selectores.append(f'{tag}[id*="[{coord}]{sufijo}"]')
-        # 2. Selector genérico de celda/input: [id*="[1,2]_c"]
-        selectores.append(f'[id*="[{coord}]{sufijo}"]')
-        # 3. Selector sin sufijo: input[id*="[1,2]"]
-        if tag in ("input", "textarea", "select"):
-            selectores.append(f'{tag}[id*="[{coord}]"]')
-        selectores.append(f'[id*="[{coord}]"]')
-        # 4. Selector combinado con clase CSS principal: input.lsField__input[id*="[1,2]"]
-        if classes and tag in ("input", "textarea", "select"):
-            selectores.append(f'{tag}.{classes[0]}[id*="[{coord}]"]')
+            selectores.append(f'{tag}[id*="[{coord}]_c"]')
+        selectores.append(f'[id*="[{coord}]_c"]')
 
-    # B. Selector exacto por ID
-    if elem_id:
+        # 2. Selector por identificador técnico ABAP en lsdata (ej: input[lsdata*="SLOW_I[1,0]"])
+        if sap_slow_id:
+            slow_esc = sap_slow_id.replace('"', '\\"')
+            if tag in ("input", "textarea", "select"):
+                selectores.append(f'{tag}[lsdata*="{slow_esc}"]')
+            selectores.append(f'[lsdata*="{slow_esc}"]')
+
+        # 3. Selector anclado al contenedor de la ventana activa / modal (ej: [id^="M1:"] input[id*="[1,2]"])
+        if es_modal_wnd1:
+            if tag in ("input", "textarea", "select"):
+                selectores.append(f'[id^="M1:"] {tag}[id*="[{coord}]"]')
+            selectores.append(f'[id^="M1:"] [id*="[{coord}]"]')
+        elif elem_id.startswith("M0:") or "wnd[0]" in sap_sid:
+            if tag in ("input", "textarea", "select"):
+                selectores.append(f'[id^="M0:"] {tag}[id*="[{coord}]"]')
+            selectores.append(f'[id^="M0:"] [id*="[{coord}]"]')
+
+        # 4. Selector por TD contenedor de la tabla (td[id*="[1,2]"] input)
+        if tag in ("input", "textarea", "select"):
+            selectores.append(f'td[id*="[{coord}]"] {tag}')
+            selectores.append(f'td[id*="[{coord}]"] input')
+
+        # 5. Selector con coordenada sin sufijo: [id*="[1,2]"]
+        selectores.append(f'[id*="[{coord}]"]')
+
+    # B. Selectores para botones o campos de menú SAP (ej: M0:46:1:1:2::12:53 o M1:37::btn[8])
+    if elem_id and "::" in elem_id:
+        selectores.append(f'[id="{elem_id}"]')
+        partes_dos_puntos = elem_id.split("::")
+        if len(partes_dos_puntos) > 1:
+            sufijo = partes_dos_puntos[-1].strip()
+            if sufijo:
+                selectores.append(f'[id$="::{sufijo}"]')
+                selectores.append(f'[id*="::{sufijo}"]')
+                if es_modal_wnd1:
+                    selectores.append(f'[id^="M1:"][id*="::{sufijo}"]')
+                elif elem_id.startswith("M0:"):
+                    selectores.append(f'[id^="M0:"][id*="::{sufijo}"]')
+
+    # C. Selector exacto por ID (si no es celda tblXXX volátil o si no tiene :: ya agregado)
+    if elem_id and f'[id="{elem_id}"]' not in selectores:
         selectores.append(f'[id="{elem_id}"]')
         if tag != "element":
             selectores.append(f'{tag}[id="{elem_id}"]')
 
-    # C. Selector por Name
+    # D. Selector por Name
     if name:
         selectores.append(f'[name="{name}"]')
         if tag != "element":
             selectores.append(f'{tag}[name="{name}"]')
 
-    # D. Selector semántico por Role Playwright
+    # E. Selector semántico por Role Playwright
     if role:
         nombre_accesible = title or aria_label or placeholder or parser.texto_interno
         if nombre_accesible:
@@ -135,13 +216,13 @@ def parsear_elemento_devtools(html_crudo: str) -> Dict[str, Any]:
             selectores.append(f'get_by_role("{role}", name="{nombre_esc}")')
         selectores.append(f'{tag}[role="{role}"]')
 
-    # E. Selector por Placeholder
+    # F. Selector por Placeholder
     if placeholder:
         pl_esc = placeholder.replace('"', '\\"')
         selectores.append(f'get_by_placeholder("{pl_esc}")')
         selectores.append(f'[placeholder="{placeholder}"]')
 
-    # F. Selector por Título o Aria-Label
+    # G. Selector por Título o Aria-Label
     if title:
         t_esc = title.replace('"', '\\"')
         selectores.append(f'get_by_title("{t_esc}")')
@@ -149,26 +230,21 @@ def parsear_elemento_devtools(html_crudo: str) -> Dict[str, Any]:
     if aria_label:
         selectores.append(f'[aria-label="{aria_label}"]')
 
-    # G. Selector por Clases CSS
-    if classes:
-        selectores.append(f'{tag}.{classes[0]}')
-        if len(classes) > 1:
-            clases_dos = ".".join(classes[:2])
-            selectores.append(f'{tag}.{clases_dos}')
-
-    # H. Selector por SID de SAP (para controles con identificador lógico en lsdata)
-    if sap_sid:
+    # H. Selector por SID de SAP general (si no se agregó con SLOW_I)
+    if sap_sid and not sap_slow_id:
         partes_sid = sap_sid.split("/")
         if partes_sid:
             clave_sid = partes_sid[-1]
             clave_sid_esc = clave_sid.replace('"', '\\"')
             selectores.append(f'[lsdata*="{clave_sid_esc}"]')
 
-    # I. Selector por Campo de Menú SAP (M0:46:...::12:53)
-    if sap_field_id:
-        m_field = re.search(r'::(\d+:\d+)', sap_field_id)
-        if m_field:
-            selectores.append(f'[id$="::{m_field.group(1)}"]')
+    # I. Clases CSS (FILTRANDO rigurosamente clases genéricas de SAP)
+    clases_utiles = [c for c in classes if c.lower() not in CLASES_GENERICAS_SAP]
+    if clases_utiles:
+        selectores.append(f'{tag}.{clases_utiles[0]}')
+        if len(clases_utiles) > 1:
+            clases_dos = ".".join(clases_utiles[:2])
+            selectores.append(f'{tag}.{clases_dos}')
 
     # Eliminar duplicados manteniendo el orden
     selectores_unicos = []
@@ -225,7 +301,8 @@ def enriquecer_accion_con_datos_html(accion: Dict[str, Any], datos_html: Dict[st
         accion["selector_sugerido"] = selector_elegido
     elif nuevos:
         sel_actual = accion.get("selector_sugerido", "")
-        if "tbl" in sel_actual.lower() or not sel_actual or sel_actual == "page":
+        clases_gen_check = ("lsfield", "lscontrol", "lsbutton", "tbl", "page")
+        if not sel_actual or any(k in sel_actual.lower() for k in clases_gen_check):
             accion["selector_sugerido"] = nuevos[0]
 
     # Actualizar atributos DOM

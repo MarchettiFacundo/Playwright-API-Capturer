@@ -1,5 +1,6 @@
 import os
 import json
+import re
 
 def resolver_locator_playwright(selector):
     """
@@ -169,8 +170,11 @@ def generar_script_automatizacion_dom(acciones_seleccionadas, nombre_archivo="au
         codigo.append("                    loc = target.locator(sel).first")
         codigo.append("                else:")
         codigo.append("                    loc = sel.first")
-        codigo.append("")
-        codigo.append("                loc.wait_for(state='attached', timeout=timeout_ms)")
+        codigo.append("                # Esperar visibilidad del elemento (evita interactuar con campos de fondo cubiertos por modales)")
+        codigo.append("                try:")
+        codigo.append("                    loc.wait_for(state='visible', timeout=min(timeout_ms, 4000))")
+        codigo.append("                except Exception:")
+        codigo.append("                    loc.wait_for(state='attached', timeout=timeout_ms)")
         codigo.append("")
         codigo.append("                if tipo_accion == 'click':")
         codigo.append("                    loc.click(timeout=timeout_ms)")
@@ -195,7 +199,13 @@ def generar_script_automatizacion_dom(acciones_seleccionadas, nombre_archivo="au
         codigo.append("                elif tipo_accion in ('select', 'change'):")
         codigo.append("                    loc.select_option(valor or '', timeout=timeout_ms)")
         codigo.append("                elif tipo_accion == 'key':")
-        codigo.append("                    loc.press(valor or 'Enter', timeout=timeout_ms)")
+        codigo.append("                    try:")
+        codigo.append("                        loc.press(valor or 'Enter', timeout=timeout_ms)")
+        codigo.append("                    except Exception:")
+        codigo.append("                        try:")
+        codigo.append("                            target.keyboard.press(valor or 'Enter')")
+        codigo.append("                        except Exception:")
+        codigo.append("                            page.keyboard.press(valor or 'Enter')")
         codigo.append("                elif tipo_accion == 'extract':")
         codigo.append("                    raw_text = loc.inner_text(timeout=timeout_ms).strip()")
         codigo.append("                    if not raw_text:")
@@ -342,77 +352,121 @@ def generar_script_automatizacion_dom(acciones_seleccionadas, nombre_archivo="au
             if locator_str.startswith("page"):
                 locator_str = "page" + prefijo_frames + locator_str[4:]
 
-        # Recolectar lista ordenada de selectores de respaldo para modo resiliente
+        # Recolectar lista ordenada y priorizada de selectores de respaldo para modo resiliente
         candidatos = []
-        if selector:
-            candidatos.append(selector)
-            try:
-                from src.utils.dom_enricher import flexibilizar_selector_sap
-                for s_flex in flexibilizar_selector_sap(selector):
-                    if s_flex not in candidatos:
-                        candidatos.append(s_flex)
-            except Exception:
-                pass
-        # Selectores candidatos descubiertos o inyectados desde DevTools
-        for sc in accion.get("selectores_candidatos", []) + accion.get("selectores_alternativos", []):
-            if sc and sc not in candidatos:
-                candidatos.append(sc)
-        if accion.get("xpath") and ("xpath=" + accion["xpath"]) not in candidatos:
-            candidatos.append("xpath=" + accion["xpath"])
-        # Recolectar lista ordenada de selectores de respaldo como lambdas nativas de Playwright
-        candidatos_lambdas = []
         candidatos_vistos = set()
+        candidatos_lambdas = []
+        candidatos_lambdas_vistos = set()
 
-        def _agregar_candidato(sel_raw):
-            if not sel_raw:
+        def _agregar_candidato_ambos(sel_raw):
+            if not sel_raw or not str(sel_raw).strip():
                 return
-            l_str = selector_a_lambda_str(sel_raw)
-            if l_str not in candidatos_vistos:
+            s_limpio = str(sel_raw).strip()
+            if s_limpio not in candidatos_vistos:
+                candidatos.append(s_limpio)
+                candidatos_vistos.add(s_limpio)
+            l_str = selector_a_lambda_str(s_limpio)
+            if l_str not in candidatos_lambdas_vistos:
                 candidatos_lambdas.append(l_str)
-                candidatos_vistos.add(l_str)
+                candidatos_lambdas_vistos.add(l_str)
 
-        _agregar_candidato(selector)
-        for sc in accion.get("selectores_candidatos", []) + accion.get("selectores_alternativos", []):
-            _agregar_candidato(sc)
-        if selector:
+        # 1. Metadatos de SAP para priorizar de forma certera
+        outer_html = accion.get("outerHTML", "")
+        raw_id = accion.get("id", "")
+        sugerido_orig = selector or ""
+        
+        # Detección de coordenadas de tabla SAP [fila,columna]
+        m_coord = re.search(r'\[(\d+,\d+)\]', raw_id or sugerido_orig or outer_html)
+        # Identificador técnico ABAP en lsdata (SLOW_I[1,0], etc.)
+        m_slow = re.search(r'(SLOW_[A-Z0-9_]+\[\d+,\d+\])', outer_html)
+        # Detección de ventana modal wnd[1] / M1: vs ventana principal
+        es_modal_sap = "wnd[1]" in outer_html or (raw_id and raw_id.startswith("M1:")) or (sugerido_orig and "M1:" in sugerido_orig)
+        es_main_sap = "wnd[0]" in outer_html or (raw_id and raw_id.startswith("M0:")) or (sugerido_orig and "M0:" in sugerido_orig)
+        # Identificador con :: (botones, menús, etc.)
+        cadena_busqueda_btn = raw_id or sugerido_orig
+        partes_dos_puntos = cadena_busqueda_btn.split("::") if "::" in cadena_busqueda_btn else []
+        sufijo_btn = partes_dos_puntos[-1].rstrip('"\'\\]').strip() if len(partes_dos_puntos) > 1 else ""
+
+        # A. Si es celda de tabla SAP, agregar selectores ultra-específicos y resilientes
+        if m_coord:
+            coord = m_coord.group(1)
+            tag_elem = (accion.get("tagName") or "input").lower()
+            if tag_elem in ("input", "element", "span", "div"):
+                tag_elem = "input"
+            
+            _agregar_candidato_ambos(f'{tag_elem}[id*="[{coord}]_c"]')
+            _agregar_candidato_ambos(f'[id*="[{coord}]_c"]')
+            if m_slow:
+                _agregar_candidato_ambos(f'{tag_elem}[lsdata*="{m_slow.group(1)}"]')
+                _agregar_candidato_ambos(f'[lsdata*="{m_slow.group(1)}"]')
+            if es_modal_sap:
+                _agregar_candidato_ambos(f'[id^="M1:"] {tag_elem}[id*="[{coord}]"]')
+                _agregar_candidato_ambos(f'[id^="M1:"] [id*="[{coord}]"]')
+            elif es_main_sap:
+                _agregar_candidato_ambos(f'[id^="M0:"] {tag_elem}[id*="[{coord}]"]')
+                _agregar_candidato_ambos(f'[id^="M0:"] [id*="[{coord}]"]')
+            _agregar_candidato_ambos(f'td[id*="[{coord}]"] {tag_elem}')
+            _agregar_candidato_ambos(f'[id*="[{coord}]"]')
+
+        # B. Si es un botón o control SAP con :: (ej: M0:46:1:1:2::12:53 o M1:37::btn[8])
+        if sufijo_btn:
+            if raw_id:
+                _agregar_candidato_ambos(f'[id="{raw_id}"]')
+            _agregar_candidato_ambos(f'[id$="::{sufijo_btn}"]')
+            _agregar_candidato_ambos(f'[id*="::{sufijo_btn}"]')
+            if es_modal_sap:
+                _agregar_candidato_ambos(f'[id^="M1:"][id*="::{sufijo_btn}"]')
+            elif es_main_sap:
+                _agregar_candidato_ambos(f'[id^="M0:"][id*="::{sufijo_btn}"]')
+
+        # C. Selector sugerido si NO es una clase genérica de SAP
+        CLASES_GEN_SAP = ("lsfield__input", "lsfield", "lsbutton", "lscontrol", "lscontrol--explicitheight")
+        es_sugerido_generico = any(g in sugerido_orig.lower() for g in CLASES_GEN_SAP)
+        if sugerido_orig and not es_sugerido_generico:
+            _agregar_candidato_ambos(sugerido_orig)
             try:
                 from src.utils.dom_enricher import flexibilizar_selector_sap
-                for s_flex in flexibilizar_selector_sap(selector):
-                    _agregar_candidato(s_flex)
+                for s_flex in flexibilizar_selector_sap(sugerido_orig):
+                    _agregar_candidato_ambos(s_flex)
             except Exception:
                 pass
-        if accion.get("xpath"):
-            _agregar_candidato("xpath=" + accion["xpath"])
-        if accion.get("id"):
-            id_sel = f'[id="{accion["id"]}"]'
-            if id_sel not in candidatos:
-                candidatos.append(id_sel)
-            _agregar_candidato(id_sel)
+
+        # D. Selectores candidatos de DevTools
+        for sc in accion.get("selectores_candidatos", []) + accion.get("selectores_alternativos", []):
+            if sc and not any(g in str(sc).lower() for g in CLASES_GEN_SAP):
+                _agregar_candidato_ambos(sc)
+
+        # E. IDs limpios (no efímeros tipo u2186)
+        if raw_id and not raw_id.startswith("u") and not raw_id.isdigit():
+            id_sel = f'[id="{raw_id}"]'
+            _agregar_candidato_ambos(id_sel)
             try:
                 from src.utils.dom_enricher import flexibilizar_selector_sap
                 for s_flex in flexibilizar_selector_sap(id_sel):
-                    if s_flex not in candidatos:
-                        candidatos.append(s_flex)
-                    _agregar_candidato(s_flex)
+                    _agregar_candidato_ambos(s_flex)
             except Exception:
                 pass
-        if accion.get("name"):
-            name_sel = f'[name="{accion["name"]}"]'
-            if name_sel not in candidatos:
-                candidatos.append(name_sel)
-            _agregar_candidato(f'[name="{accion["name"]}"]')
-        if accion.get("placeholder"):
-            ph_sel = f'placeholder={accion["placeholder"]}'
-            if ph_sel not in candidatos:
-                candidatos.append(ph_sel)
-            _agregar_candidato(ph_sel)
-        if not candidatos:
-            candidatos.append(selector or "page")
 
+        # F. Name o Placeholder
+        if accion.get("name"):
+            _agregar_candidato_ambos(f'[name="{accion["name"]}"]')
+        if accion.get("placeholder"):
+            _agregar_candidato_ambos(f'placeholder={accion["placeholder"]}')
+
+        # G. XPath
+        if accion.get("xpath"):
+            _agregar_candidato_ambos("xpath=" + accion["xpath"])
+
+        # H. Como último recurso, si no teníamos nada más, el selector sugerido original
+        if sugerido_orig and es_sugerido_generico and len(candidatos) == 0:
+            _agregar_candidato_ambos(sugerido_orig)
+
+        if not candidatos:
+            candidatos.append(sugerido_orig or "page")
         if not candidatos_lambdas:
             candidatos_lambdas.append("lambda p: p")
 
-        candidatos_repr = "[" + ", ".join(candidatos_lambdas) + "]"
+        candidatos_repr = repr(candidatos)
         
         codigo.append(f"        # --------------------------------------------------")
         codigo.append(f"        # Paso {idx + 1}: {desc}")
@@ -512,7 +566,10 @@ def generar_script_automatizacion_dom(acciones_seleccionadas, nombre_archivo="au
                 codigo.append(f"        {locator_str}.first.select_option({repr(valor)})")
             elif tipo == "key":
                 codigo.append(f"        print({repr(f'[PASO] Presionar tecla \"{valor}\" en: {desc}')})")
-                codigo.append(f"        {locator_str}.first.press({repr(valor)})")
+                codigo.append("        try:")
+                codigo.append(f"            {locator_str}.first.press({repr(valor)})")
+                codigo.append("        except Exception:")
+                codigo.append(f"            page.keyboard.press({repr(valor)})")
             elif tipo == "assert_visible":
                 codigo.append(f"        print({repr(f'[PASO] Validar visibilidad de: {desc}')})")
                 codigo.append(f"        expect({locator_str}.first).to_be_visible()")

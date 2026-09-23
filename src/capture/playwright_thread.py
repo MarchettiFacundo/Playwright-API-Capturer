@@ -178,6 +178,11 @@ class PlaywrightCaptureThread(threading.Thread):
                         return
                     try:
                         datos = json.loads(datos_json)
+                        if datos.get("tipo_accion") == "toggle_teclas_estado":
+                            habilitado = bool(datos.get("habilitado", False))
+                            self.output_queue.put(("toggle_teclas_estado", habilitado))
+                            return
+
                         datos["seleccionado"] = True
                         
                         ruta_iframes = []
@@ -370,6 +375,34 @@ class PlaywrightCaptureThread(threading.Thread):
                                 print(f"[WARN] Error resaltando: {err}")
                     elif cmd_tipo == "pause":
                         self.paused = cmd_dato
+                    elif cmd_tipo == "toggle_teclas":
+                        habilitar = bool(cmd_dato)
+                        if self.context:
+                            js_toggle = f"""
+                            (() => {{
+                                window.__grabarTeclasHabilitado = {str(habilitar).lower()};
+                                try {{ if (window.top) window.top.__grabarTeclasHabilitado = {str(habilitar).lower()}; }} catch(e) {{}}
+                                try {{
+                                    if (typeof window.__actualizarBadgeTeclas === 'function') {{
+                                        window.__actualizarBadgeTeclas({str(habilitar).lower()});
+                                    }}
+                                    let badge = document.getElementById('__dom_capturer_key_toggle');
+                                    if (badge && typeof badge.__actualizarEstado === 'function') {{
+                                        badge.__actualizarEstado({str(habilitar).lower()});
+                                    }}
+                                }} catch(e) {{}}
+                            }})()
+                            """
+                            for pg in self.context.pages:
+                                try:
+                                    await pg.evaluate(js_toggle)
+                                    for fr in pg.frames:
+                                        try:
+                                            await fr.evaluate(js_toggle)
+                                        except Exception:
+                                            pass
+                                except Exception:
+                                    pass
                     elif cmd_tipo == "abrir_inspector":
                         if self.context and self.context.pages:
                             for pg in self.context.pages:

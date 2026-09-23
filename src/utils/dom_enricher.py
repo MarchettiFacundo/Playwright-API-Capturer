@@ -19,11 +19,14 @@ JS_EXTRACCION_DOM = r"""
     function esIdValido(id) {
         if (!id) return false;
         if (id.includes("#")) return false;
+        if (/^u\d+$/.test(id)) return false; // IDs efímeros de sesión SAP (ej: u2186)
+        if (/^\d+$/.test(id)) return false;
+        // Reconocer IDs estructurales de SAP WebGUI
+        if (id.includes("::") || /\[\d+,\d+\]/.test(id)) return true;
         if (id.includes("-") && /\d+/.test(id)) return false;
         if (id.includes("_") && /\d+/.test(id)) return false;
         if (id.startsWith("sap-ui-id")) return false;
         if (id.startsWith("sap-comp")) return false;
-        if (id.includes("::")) return false;
         if (isNaN(id.charAt(0)) === false) return false;
         return true;
     }
@@ -68,10 +71,20 @@ JS_EXTRACCION_DOM = r"""
         let classText = clasesList.length > 0 ? "." + clasesList.join(".") : "";
         
         let sug = "";
-        if (current.id && esIdValido(current.id)) {
+        if (current.id && /\[\d+,\d+\]/.test(current.id)) {
+            let mCoord = current.id.match(/\[\d+,\d+\]/);
+            sug = mCoord ? `${tag}[id*="${mCoord[0]}_c"]` : `[id="${current.id}"]`;
+        } else if (current.id && current.id.includes("::")) {
+            sug = `[id="${current.id}"]`;
+        } else if (current.id && esIdValido(current.id)) {
             sug = `#${current.id}`;
         } else if (clasesList.length > 0) {
-            sug = `${tag}.${clasesList[0]}`;
+            let clasesValidas = clasesList.filter(c => !c.toLowerCase().includes("lsfield") && !c.toLowerCase().includes("lscontrol") && !c.toLowerCase().includes("lsbutton"));
+            if (clasesValidas.length > 0) {
+                sug = `${tag}.${clasesValidas[0]}`;
+            } else {
+                sug = tag;
+            }
         } else {
             sug = tag;
         }
@@ -105,22 +118,52 @@ JS_EXTRACCION_DOM = r"""
 
 def flexibilizar_selector_sap(s: str) -> List[str]:
     """Genera variantes de selectores tolerantes a cambios de sesión en SAP ITS."""
-    candidatos = [s]
-    # Caso tabla dinámica: tbl264[1,2]_c -> variantes de celda e input
-    m = re.search(r'\[id=[\"\']tbl\d+(\[\d+,\d+\].*?)[\"\']\]', s)
-    if m:
-        coord = m.group(1)
-        candidatos.append(f'[id*="{coord}"]')
-        candidatos.append(f'[id*="{coord}"] input')
-        m_pura = re.search(r'\[\d+,\d+\]', coord)
-        if m_pura:
-            candidatos.append(f'[id*="{m_pura.group(0)}"]')
-            candidatos.append(f'[id*="{m_pura.group(0)}"] input')
-    # Caso campo de menú/transacción SAP: M0:46:...::12:53 -> [id$="::12:53"]
-    m2 = re.search(r'\[id=[\"\']M\d+:\d+.*?::(\d+:\d+)[\"\']\]', s)
-    if m2:
-        candidatos.append(f'[id$="::{m2.group(1)}"]')
-    return candidatos
+    candidatos = []
+    if not s:
+        return candidatos
+
+    # Caso 1: Coordenadas de celdas de tabla SAP: [fila,columna]
+    m_coord = re.search(r'\[(\d+,\d+)\]', s)
+    if m_coord:
+        coord = m_coord.group(1)
+        tag = "input" if "input" in s.lower() else ""
+        pref_tag = f"{tag}" if tag else ""
+        
+        # Variantes ordenadas por máxima resiliencia
+        candidatos.append(f'{pref_tag}[id*="[{coord}]_c"]' if pref_tag else f'input[id*="[{coord}]_c"]')
+        candidatos.append(f'[id*="[{coord}]_c"]')
+        candidatos.append(f'[id^="M1:"] input[id*="[{coord}]"]')
+        candidatos.append(f'[id^="M0:"] input[id*="[{coord}]"]')
+        candidatos.append(f'td[id*="[{coord}]"] input')
+        candidatos.append(f'[id*="[{coord}]"]')
+        candidatos.append(f'[id*="[{coord}]"] input')
+
+    # Caso 2: Campo de menú, botón o control con identificador SAP ::sufijo
+    if "::" in s:
+        partes_dos_puntos = s.split("::")
+        if len(partes_dos_puntos) > 1:
+            sufijo = partes_dos_puntos[-1].rstrip('"\'\\]').strip()
+            if sufijo:
+                candidatos.append(f'[id$="::{sufijo}"]')
+                candidatos.append(f'[id*="::{sufijo}"]')
+                candidatos.append(f'[id^="M1:"][id*="::{sufijo}"]')
+                candidatos.append(f'[id^="M0:"][id*="::{sufijo}"]')
+
+    # Mantener el selector original si no es hipergenérico
+    es_generico = any(g in s.lower() for g in ["lsfield__input", "lscontrol", "lsbutton"])
+    if s not in candidatos and not es_generico:
+        candidatos.insert(0, s)
+    elif s not in candidatos and es_generico:
+        candidatos.append(s)
+
+    # Eliminar duplicados preservando el orden
+    resultado = []
+    vistos = set()
+    for c in candidatos:
+        if c and c not in vistos:
+            resultado.append(c)
+            vistos.add(c)
+    return resultado
 
 def resolver_locators_candidatos(page, selector_str: str, ruta_iframes: Optional[List[str]] = None) -> List[Any]:
     """Resuelve un selector a una lista de Locators ordenados por preferencia (exacto -> flexibles)."""

@@ -7,11 +7,14 @@ JS_SCRIPT = r"""
     function esIdValido(id) {
         if (!id) return false;
         if (id.includes("#")) return false; // IDs con '#' (como SAP WebGUI tree nodes) son altamente dinámicos e inestables en CSS
+        if (/^u\d+$/.test(id)) return false; // IDs efímeros de sesión SAP (ej: u2186)
+        if (/^\d+$/.test(id)) return false;
+        // Reconocer IDs estructurales de SAP WebGUI (coordenadas o pantallas ::)
+        if (id.includes("::") || /\[\d+,\d+\]/.test(id)) return true;
         if (id.includes("-") && /\d+/.test(id)) return false;
         if (id.includes("_") && /\d+/.test(id)) return false;
         if (id.startsWith("sap-ui-id")) return false;
         if (id.startsWith("sap-comp")) return false;
-        if (id.includes("::")) return false;
         if (isNaN(id.charAt(0)) === false) return false;
         return true;
     }
@@ -26,7 +29,7 @@ JS_SCRIPT = r"""
             if (sibling === el) {
                 return obtenerXPath(el.parentNode) + '/' + el.tagName.toLowerCase() + '[' + (siblingCount + 1) + ']';
             }
-            if (sibling.nodeType === 1 && sibling.tagName === el.tagName) {
+            if (sibling.nodeType === 1 && sibling.tagName === node.tagName) {
                 siblingCount++;
             }
         }
@@ -37,6 +40,28 @@ JS_SCRIPT = r"""
         let tag = el.tagName.toLowerCase();
         let esExtraccion = (tipoAccion === 'extract');
         
+        // 0. Detección nativa de elementos estructurados de SAP WebGUI / ITS
+        if (el.id && /\[\d+,\d+\]/.test(el.id)) {
+            let mCoord = el.id.match(/\[\d+,\d+\]/);
+            if (mCoord) {
+                return `${tag}[id*="${mCoord[0]}_c"]`;
+            }
+        }
+        let lsdataVal = el.getAttribute("lsdata");
+        if (lsdataVal) {
+            let mSlow = lsdataVal.match(/(SLOW_[A-Z0-9_]+\[\d+,\d+\])/);
+            if (mSlow) {
+                return `${tag}[lsdata*="${mSlow[1]}"]`;
+            }
+        }
+        if (el.id && el.id.includes("::")) {
+            let mSuf = el.id.match(/::([^"':\s\]]+)$/);
+            if (mSuf) {
+                return `[id$="::${mSuf[1]}"]`;
+            }
+            return `[id="${el.id}"]`;
+        }
+
         // 1. Selector por etiqueta asociada (get_by_label)
         let labelText = "";
         if (el.id) {
@@ -113,9 +138,10 @@ JS_SCRIPT = r"""
         // 6. Name
         if (el.name) return `[name="${el.name}"]`;
         
-        // 7. Clases CSS como último recurso antes de XPath
-        if (el.className) {
-            let clases = Array.from(el.classList).filter(c => !c.includes("hover") && !c.includes("active")).join(".");
+        // 7. Clases CSS como último recurso antes de XPath (excluyendo clases hipergenéricas de SAP)
+        if (el.className && typeof el.className === "string") {
+            let clasesGenSAP = ["lsfield__input", "lsfield", "lsfield__subinput", "lsbutton", "lsbutton--base", "lscontrol", "lscontrol--explicitheight", "lscontrol--valigntop", "lscontrol--valignmiddle"];
+            let clases = Array.from(el.classList).filter(c => !c.includes("hover") && !c.includes("active") && !clasesGenSAP.includes(c.toLowerCase())).join(".");
             if (clases) return `${tag}.${clases}`;
         }
         return `xpath=${obtenerXPath(el)}`;
@@ -222,10 +248,15 @@ JS_SCRIPT = r"""
                 valor = el.checked ? "checked" : "unchecked";
             }
 
+            let desc = obtenerDescriptorLegible(el);
+            if (tipoAccion === 'key') {
+                desc = `Presionar tecla "${valor}" en ${desc}`;
+            }
+
             let datos = {
                 tipo_accion: tipoAccion,
                 tagName: el.tagName,
-                descriptor_legible: obtenerDescriptorLegible(el),
+                descriptor_legible: desc,
                 selector_sugerido: obtenerSelectorOptimo(el, tipoAccion),
                 valor: valor,
                 id: el.id || "",
@@ -245,6 +276,11 @@ JS_SCRIPT = r"""
     }
 
     document.addEventListener('click', (e) => {
+        // Ignorar clics sobre el botón flotante de control de atajos
+        if (e.target && (e.target.closest('#__dom_capturer_key_toggle') || e.target.closest('[data-capturer-ignore="true"]'))) {
+            return;
+        }
+
         let esExtraccion = e.shiftKey || e.ctrlKey || e.altKey;
         let el;
         
@@ -305,10 +341,69 @@ JS_SCRIPT = r"""
     }, true);
 
     document.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' || e.key === 'Tab') {
+        // 1. Ignorar teclas modificadoras solitarias
+        if (['Shift', 'Control', 'Alt', 'Meta', 'CapsLock', 'NumLock', 'ScrollLock'].includes(e.key)) {
+            return;
+        }
+
+        // 2. FILTRO ESTRICTO DE EDICIÓN: Nunca capturar Ctrl+C, Ctrl+V, Ctrl+X, Ctrl+A, Ctrl+Z
+        let atajosEdicion = ['c', 'v', 'x', 'a', 'z', 'y', 'insert'];
+        if ((e.ctrlKey || e.metaKey) && atajosEdicion.includes(e.key.toLowerCase())) {
+            return;
+        }
+
+        // 3. Comprobar si la captura de atajos está habilitada mediante el botón flotante
+        let habilitado = false;
+        try {
+            if (window.top && window.top.__grabarTeclasHabilitado !== undefined) {
+                habilitado = window.top.__grabarTeclasHabilitado;
+            } else if (window.__grabarTeclasHabilitado !== undefined) {
+                habilitado = window.__grabarTeclasHabilitado;
+            }
+        } catch (err) {}
+
+        let esTeclaFuncion = /^F\d+$/.test(e.key); // F1 a F12 (ej: F4, F8 en SAP)
+        let esNavegacion = ['Enter', 'Tab', 'Escape', 'Backspace', 'Delete', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown', 'Home', 'End'].includes(e.key);
+        let tieneModificador = e.ctrlKey || e.altKey || (e.shiftKey && (esTeclaFuncion || esNavegacion || e.key.length > 1));
+
+        // 4. Si el botón flotante está en OFF, solo capturar Enter y Tab en inputs para confirmación de formularios
+        if (!habilitado) {
+            if (e.key === 'Enter' || e.key === 'Tab') {
+                let el = e.target;
+                if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.getAttribute('role') === 'combobox')) {
+                    enviarAccion(el, 'key', e.key);
+                }
+            }
+            return;
+        }
+
+        // 5. Si el botón flotante está en ON, capturar atajos con modificadores y teclas de función (Shift+F4, F8, etc.)
+        if (tieneModificador || esTeclaFuncion || e.key === 'Enter' || e.key === 'Escape') {
+            let partesMod = [];
+            if (e.ctrlKey) partesMod.push('Control');
+            if (e.altKey) partesMod.push('Alt');
+            if (e.shiftKey) partesMod.push('Shift');
+            if (e.metaKey) partesMod.push('Meta');
+
+            let teclaPrincipal = e.key;
+            let combinacion = partesMod.length > 0 ? (partesMod.join('+') + '+' + teclaPrincipal) : teclaPrincipal;
+
+            let el = (document.activeElement && document.activeElement !== document.body) ? document.activeElement : (e.target || document.body);
+            enviarAccion(el, 'key', combinacion);
+
+            // Notificación visual en el botón flotante
+            try {
+                if (typeof window.__notificarTeclaCapturada === 'function') {
+                    window.__notificarTeclaCapturada(combinacion);
+                }
+                if (window.top && typeof window.top.__notificarTeclaCapturada === 'function') {
+                    window.top.__notificarTeclaCapturada(combinacion);
+                }
+            } catch (err) {}
+        } else if (e.key === 'Tab') {
             let el = e.target;
             if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.getAttribute('role') === 'combobox')) {
-                enviarAccion(el, 'key', e.key);
+                enviarAccion(el, 'key', 'Tab');
             }
         }
     }, true);
@@ -324,5 +419,210 @@ JS_SCRIPT = r"""
             enviarAccion(el, 'upload', fileName);
         }
     }, true);
+
+    // Inyección de Botón Flotante ultra-robusto (compatible con SAP WebGUI, Framesets e Iframes)
+    function inyectarBotonFlotanteTeclas() {
+        if (document.getElementById('__dom_capturer_key_toggle')) return;
+
+        // Comprobar si este frame/ventana debe alojar el botón
+        let esFrameset = document.body && document.body.tagName === 'FRAMESET';
+        let esTop = (window === window.top);
+
+        if (esTop && esFrameset) {
+            // En un frameset superior, los divs no renderizan; permitimos que los iframes interactivos hijos lo alojen
+            return;
+        }
+
+        if (!esTop) {
+            // Si es un iframe: comprobar si top ya tiene el botón visible
+            let topTieneBoton = false;
+            try {
+                if (window.top && window.top.document && window.top.document.getElementById('__dom_capturer_key_toggle')) {
+                    topTieneBoton = true;
+                }
+            } catch (e) {}
+            if (topTieneBoton) return;
+
+            // Si top no tiene el botón (ej: frameset de SAP ITS), este frame debe ser visible
+            if (window.innerWidth < 250 || window.innerHeight < 150) {
+                return;
+            }
+        }
+
+        if (window.__grabarTeclasHabilitado === undefined) {
+            try {
+                if (window.top && window.top.__grabarTeclasHabilitado !== undefined) {
+                    window.__grabarTeclasHabilitado = window.top.__grabarTeclasHabilitado;
+                } else {
+                    window.__grabarTeclasHabilitado = false;
+                }
+            } catch(e) {
+                window.__grabarTeclasHabilitado = false;
+            }
+        }
+
+        let btn = document.createElement('div');
+        btn.id = '__dom_capturer_key_toggle';
+        btn.setAttribute('data-capturer-ignore', 'true');
+        btn.style.cssText = `
+            position: fixed !important;
+            bottom: 24px !important;
+            right: 24px !important;
+            z-index: 2147483647 !important;
+            padding: 9px 18px !important;
+            border-radius: 30px !important;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif !important;
+            font-size: 13px !important;
+            font-weight: 700 !important;
+            cursor: pointer !important;
+            user-select: none !important;
+            display: flex !important;
+            align-items: center !important;
+            gap: 9px !important;
+            transition: background 0.2s ease, border-color 0.2s ease, transform 0.15s ease !important;
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4) !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            pointer-events: auto !important;
+            box-sizing: border-box !important;
+            line-height: normal !important;
+        `;
+
+        function render(activo, mensajeTemporal) {
+            if (mensajeTemporal) {
+                btn.style.background = '#0284c7';
+                btn.style.color = '#ffffff';
+                btn.style.border = '2px solid #38bdf8';
+                btn.innerHTML = `<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#ffffff;box-shadow:0 0 8px #ffffff;"></span> ${mensajeTemporal}`;
+                return;
+            }
+            if (activo) {
+                btn.style.background = '#065f46';
+                btn.style.color = '#ffffff';
+                btn.style.border = '2px solid #10b981';
+                btn.style.boxShadow = '0 6px 20px rgba(16, 185, 129, 0.45)';
+                btn.innerHTML = `<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#34d399;box-shadow:0 0 8px #34d399;"></span> ⌨️ Grabar Atajos: <span style="color:#a7f3d0;text-decoration:underline;">ON</span>`;
+                btn.title = "Detección de atajos ACTIVADA (Shift+F4, F8, etc.). Clic para pausar o arrastra para reubicar.";
+            } else {
+                btn.style.background = '#0f172a';
+                btn.style.color = '#cbd5e1';
+                btn.style.border = '2px solid #475569';
+                btn.style.boxShadow = '0 6px 20px rgba(0, 0, 0, 0.4)';
+                btn.innerHTML = `<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#64748b;"></span> ⌨️ Grabar Atajos: <strong style="color:#94a3b8;">OFF</strong>`;
+                btn.title = "Detección de atajos en PAUSA (no grabará Ctrl+V ni tipeo). Clic para activar Shift+F4 / F8.";
+            }
+        }
+
+        // Función para cambiar estado y notificar a Python
+        function setEstadoTeclas(nuevoEstado) {
+            window.__grabarTeclasHabilitado = nuevoEstado;
+            try {
+                if (window.top) window.top.__grabarTeclasHabilitado = nuevoEstado;
+            } catch(e) {}
+
+            render(nuevoEstado);
+
+            // Sincronizar con la app Python
+            try {
+                if (window.registrarAccionDOM) {
+                    window.registrarAccionDOM(JSON.stringify({
+                        tipo_accion: "toggle_teclas_estado",
+                        habilitado: nuevoEstado
+                    }));
+                }
+            } catch(e) {}
+        }
+
+        // Arrastrar (Draggable) para no tapar elementos de SAP WebGUI
+        let arrastrando = false;
+        let startX = 0, startY = 0, initLeft = 0, initTop = 0;
+
+        btn.addEventListener('mousedown', (e) => {
+            if (e.button !== 0) return;
+            arrastrando = false;
+            startX = e.clientX;
+            startY = e.clientY;
+            let rect = btn.getBoundingClientRect();
+            initLeft = rect.left;
+            initTop = rect.top;
+
+            function onMouseMove(me) {
+                let dx = me.clientX - startX;
+                let dy = me.clientY - startY;
+                if (Math.abs(dx) > 4 || Math.abs(dy) > 4) {
+                    arrastrando = true;
+                    btn.style.bottom = 'auto';
+                    btn.style.right = 'auto';
+                    btn.style.left = Math.max(10, Math.min(window.innerWidth - btn.offsetWidth - 10, initLeft + dx)) + 'px';
+                    btn.style.top = Math.max(10, Math.min(window.innerHeight - btn.offsetHeight - 10, initTop + dy)) + 'px';
+                }
+            }
+
+            function onMouseUp() {
+                document.removeEventListener('mousemove', onMouseMove, true);
+                document.removeEventListener('mouseup', onMouseUp, true);
+            }
+
+            document.addEventListener('mousemove', onMouseMove, true);
+            document.addEventListener('mouseup', onMouseUp, true);
+        }, true);
+
+        btn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (arrastrando) {
+                arrastrando = false;
+                return;
+            }
+            setEstadoTeclas(!window.__grabarTeclasHabilitado);
+        }, true);
+
+        // Exponer función de actualización externa para sincronización desde Python
+        btn.__actualizarEstado = function(activo) {
+            window.__grabarTeclasHabilitado = activo;
+            render(activo);
+        };
+        window.__actualizarBadgeTeclas = function(activo) {
+            window.__grabarTeclasHabilitado = activo;
+            render(activo);
+        };
+
+        window.__notificarTeclaCapturada = function(tecla) {
+            render(true, `✅ ¡Atajo "${tecla}" grabado!`);
+            setTimeout(() => {
+                render(window.__grabarTeclasHabilitado);
+            }, 1500);
+        };
+
+        render(window.__grabarTeclasHabilitado);
+
+        function anexar() {
+            if (document.getElementById('__dom_capturer_key_toggle')) return;
+            let container = document.body || document.documentElement;
+            if (container && container.tagName === 'FRAMESET') {
+                container = document.documentElement;
+            }
+            if (container) {
+                try {
+                    container.appendChild(btn);
+                } catch(e) {}
+            }
+        }
+
+        anexar();
+        if (document.readyState === 'loading') {
+            window.addEventListener('DOMContentLoaded', anexar);
+            window.addEventListener('load', anexar);
+        }
+    }
+
+    inyectarBotonFlotanteTeclas();
+
+    // Verificación periódica para re-inyectar si SAP WebGUI redibuja la pantalla
+    setInterval(() => {
+        try {
+            inyectarBotonFlotanteTeclas();
+        } catch(e) {}
+    }, 1200);
 })();
 """

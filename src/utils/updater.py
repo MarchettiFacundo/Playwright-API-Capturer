@@ -6,7 +6,7 @@ import tempfile
 import tkinter as tk
 from tkinter import ttk, messagebox
 
-VERSION_LOCAL = "1.3.1"
+VERSION_LOCAL = "1.3.2"
 
 def verificar_actualizaciones(app_instance, manual=False):
     """Verifica de forma asíncrona si existen actualizaciones en GitHub."""

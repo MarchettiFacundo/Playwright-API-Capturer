@@ -90,6 +90,7 @@ class CapturaApp:
         self.config_http_pass = tk.StringVar(value="")
         self.config_trace_en_codigo = tk.BooleanVar(value=False)
         self.codegen_process = None
+        self.grabar_teclas_activo = False
         
         # Cargar configuración persistida si existe
         self.cargar_configuracion_gui()
@@ -347,6 +348,15 @@ class CapturaApp:
         self.btn_stop.pack(side=tk.LEFT, padx=5)
         self.btn_stop.state(["disabled"])
         
+        self.btn_toggle_teclas = tb.Button(
+            buttons_subframe, 
+            text="⌨️ Atajos: OFF", 
+            bootstyle="secondary-outline", 
+            command=self.toggle_grabar_teclas
+        )
+        self.btn_toggle_teclas.pack(side=tk.LEFT, padx=5)
+        self.btn_toggle_teclas.state(["disabled"])
+
         self.btn_inspector = tb.Button(buttons_subframe, text="🔍 Inspector", bootstyle="info-outline", command=self.abrir_inspector_playwright)
         self.btn_inspector.pack(side=tk.LEFT, padx=5)
         self.btn_inspector.state(["disabled"])
@@ -956,6 +966,10 @@ class CapturaApp:
         self.btn_pause.config(text="⏸️ Pausar")
         self.btn_stop.state(["!disabled"])
         self.btn_inspector.state(["!disabled"])
+        if hasattr(self, "btn_toggle_teclas"):
+            self.btn_toggle_teclas.state(["!disabled"])
+        self.grabar_teclas_activo = False
+        self.actualizar_ui_toggle_teclas(False)
 
         base_dir = self.config_output_dir.get().strip()
         if not base_dir:
@@ -1018,6 +1032,30 @@ class CapturaApp:
             self.btn_stop.state(["disabled"])
             self.btn_pause.state(["disabled"])
             self.btn_inspector.state(["disabled"])
+            if hasattr(self, "btn_toggle_teclas"):
+                self.btn_toggle_teclas.state(["disabled"])
+
+    def toggle_grabar_teclas(self):
+        self.grabar_teclas_activo = not getattr(self, "grabar_teclas_activo", False)
+        self.actualizar_ui_toggle_teclas(self.grabar_teclas_activo)
+        if self.capture_thread and self.capture_thread.is_alive():
+            self.capture_thread.input_queue.put(("toggle_teclas", self.grabar_teclas_activo))
+
+    def actualizar_ui_toggle_teclas(self, activo):
+        self.grabar_teclas_activo = bool(activo)
+        if hasattr(self, "btn_toggle_teclas"):
+            if self.grabar_teclas_activo:
+                self.btn_toggle_teclas.config(
+                    text="⌨️ Atajos: ON",
+                    bootstyle="success"
+                )
+                self.lbl_status.config(text="Grabación de atajos ACTIVADA (Shift+F4, F8, etc.).")
+            else:
+                self.btn_toggle_teclas.config(
+                    text="⌨️ Atajos: OFF",
+                    bootstyle="secondary-outline"
+                )
+                self.lbl_status.config(text="Grabación de atajos en PAUSA.")
 
     def descargar_e_instalar_navegadores(self, navegador="Chromium"):
         mapa_navegador = {
@@ -1258,6 +1296,8 @@ class CapturaApp:
                                 values=(val_check, idx, accion_legible, dato["descriptor_legible"], dato["valor"]),
                                 tags=("par" if idx % 2 == 0 else "impar",)
                             )
+                    elif tipo == "toggle_teclas_estado":
+                        self.actualizar_ui_toggle_teclas(dato)
                     elif tipo == "finalizado":
                         self.btn_start.state(["!disabled"])
                         self.entry_url.state(["!disabled"])
@@ -1267,6 +1307,8 @@ class CapturaApp:
                         self.btn_stop.state(["disabled"])
                         self.btn_pause.state(["disabled"])
                         self.btn_inspector.state(["disabled"])
+                        if hasattr(self, "btn_toggle_teclas"):
+                            self.btn_toggle_teclas.state(["disabled"])
                         self.capture_thread = None
                 except Exception:
                     pass
