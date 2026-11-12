@@ -126,30 +126,31 @@ def flexibilizar_selector_sap(s: str) -> List[str]:
     m_coord = re.search(r'\[(\d+,\d+)\]', s)
     if m_coord:
         coord = m_coord.group(1)
-        tag = "input" if "input" in s.lower() else ""
-        pref_tag = f"{tag}" if tag else ""
-        
-        # Variantes ordenadas por máxima resiliencia
-        candidatos.append(f'{pref_tag}[id*="[{coord}]_c"]' if pref_tag else f'input[id*="[{coord}]_c"]')
+        tag = "input" if "input" in s.lower() else ("span" if "span" in s.lower() else "")
+
+        # Variantes ordenadas por máxima especificidad y resiliencia
         candidatos.append(f'[id*="[{coord}]_c"]')
-        candidatos.append(f'[id^="M1:"] input[id*="[{coord}]"]')
-        candidatos.append(f'[id^="M0:"] input[id*="[{coord}]"]')
+        if tag:
+            candidatos.append(f'{tag}[id*="[{coord}]_c"]')
+        candidatos.append(f'input[id*="[{coord}]_c"]')
+        candidatos.append(f'span[id*="[{coord}]_c"]')
         candidatos.append(f'td[id*="[{coord}]"] input')
         candidatos.append(f'[id*="[{coord}]"]')
-        candidatos.append(f'[id*="[{coord}]"] input')
 
     # Caso 2: Campo de menú, botón o control con identificador SAP ::sufijo
     if "::" in s:
         partes_dos_puntos = s.split("::")
         if len(partes_dos_puntos) > 1:
-            sufijo = partes_dos_puntos[-1].rstrip('"\'\\]').strip()
+            sufijo = partes_dos_puntos[-1].strip()
+            # Si proviene de un selector CSS como [id="M0:37::btn[16]"], remover solo el cierre del atributo
+            sufijo = re.sub(r'["\']\]$', '', sufijo).strip('"\'\\ ')
             if sufijo:
                 candidatos.append(f'[id$="::{sufijo}"]')
                 candidatos.append(f'[id*="::{sufijo}"]')
                 candidatos.append(f'[id^="M1:"][id*="::{sufijo}"]')
                 candidatos.append(f'[id^="M0:"][id*="::{sufijo}"]')
 
-    # Mantener el selector original si no es hipergenérico
+    # Mantener el selector original al inicio si no es hipergenérico
     es_generico = any(g in s.lower() for g in ["lsfield__input", "lscontrol", "lsbutton"])
     if s not in candidatos and not es_generico:
         candidatos.insert(0, s)
@@ -228,29 +229,28 @@ def resolver_locator_playwright(page, selector_str: str, ruta_iframes: Optional[
 
 def cerrar_modales_emergentes(page, timeout_ms: int = 1000) -> bool:
     """Descarta banners de cookies, diálogos web o popups de sesión de SAP ITS de forma reactiva."""
-    patrones_web = [
-        "#onetrust-accept-btn-handler",
-        "[id*='cookie' i] button", "[class*='cookie' i] button",
-        "[id*='consent' i] button", "[class*='consent' i] button",
-        "[role='dialog'] button[aria-label*='close' i]",
-        "[role='dialog'] button[aria-label*='cerrar' i]",
-        "[role='dialog'] button.close", "[role='dialog'] .modal-close",
-        "button[data-dismiss='modal']", "button[data-bs-dismiss='modal']",
-        "[aria-modal='true'] button[aria-label*='close' i]",
-        "[aria-modal='true'] button[aria-label*='cerrar' i]",
-        ".modal.show button.close",
-        "button[aria-label='Cerrar']", "button[aria-label='Close']"
-    ]
+    selector_web_combinado = (
+        "#onetrust-accept-btn-handler, "
+        "[id*='cookie' i] button, [class*='cookie' i] button, "
+        "[id*='consent' i] button, [class*='consent' i] button, "
+        "[role='dialog'] button[aria-label*='close' i], "
+        "[role='dialog'] button[aria-label*='cerrar' i], "
+        "[role='dialog'] button.close, [role='dialog'] .modal-close, "
+        "button[data-dismiss='modal'], button[data-bs-dismiss='modal'], "
+        "[aria-modal='true'] button[aria-label*='close' i], "
+        "[aria-modal='true'] button[aria-label*='cerrar' i], "
+        ".modal.show button.close, "
+        "button[aria-label='Cerrar'], button[aria-label='Close']"
+    )
     cerrado = False
-    for pat in patrones_web:
-        try:
-            loc = page.locator(pat).first
-            if loc.is_visible(timeout=80):
-                loc.click(timeout=timeout_ms)
-                page.wait_for_timeout(300)
-                cerrado = True
-        except Exception:
-            pass
+    try:
+        loc = page.locator(selector_web_combinado).locator("visible=true").first
+        if loc.is_visible():
+            loc.click(timeout=timeout_ms)
+            page.wait_for_timeout(250)
+            cerrado = True
+    except Exception:
+        pass
 
     # Diálogos emergentes internos de SAP ITS (ej. sesión múltiple o avisos de sistema)
     try:
@@ -267,17 +267,48 @@ def cerrar_modales_emergentes(page, timeout_ms: int = 1000) -> bool:
         ]
         for pat in patrones_sap:
             try:
-                loc = sap_frame.locator(pat).first
-                if loc.is_visible(timeout=80):
+                loc = sap_frame.locator(pat).locator("visible=true").first
+                if loc.is_visible():
                     loc.click(timeout=timeout_ms)
-                    page.wait_for_timeout(400)
+                    page.wait_for_timeout(300)
                     cerrado = True
+                    break
             except Exception:
                 pass
     except Exception:
         pass
 
     return cerrado
+
+def _buscar_locator_rapido(locators_candidatos: List[Any], timeout_ms: int) -> Optional[Any]:
+    """
+    Sondea en rondas rápidas todos los locators candidatos sin bloquear el timeout completo
+    en el primer selector fallido.
+    """
+    deadline = time.monotonic() + (timeout_ms / 1000.0)
+    while time.monotonic() < deadline:
+        for loc in locators_candidatos:
+            try:
+                loc_vis = loc.locator("visible=true").first
+                if loc_vis.is_visible():
+                    return loc_vis
+            except Exception:
+                pass
+            try:
+                if loc.first.is_visible():
+                    return loc.first
+            except Exception:
+                pass
+        time.sleep(0.12)
+
+    # Último intento por estado attached (para inputs ocultos)
+    for loc in locators_candidatos:
+        try:
+            if loc.count() > 0:
+                return loc.first
+        except Exception:
+            continue
+    return None
 
 def enriquecer_pasos_dom(
     acciones: List[Dict[str, Any]],
@@ -337,9 +368,9 @@ def enriquecer_pasos_dom(
                         page.goto(url)
                         page.wait_for_load_state("domcontentloaded")
                         if es_sap:
-                            page.wait_for_timeout(2500)
+                            page.wait_for_timeout(2000)
                         else:
-                            page.wait_for_timeout(500)
+                            page.wait_for_timeout(400)
                         cerrar_modales_emergentes(page)
                         accion["outerHTML"] = page.content()[:3000]
                     except Exception as ex:
@@ -350,29 +381,14 @@ def enriquecer_pasos_dom(
             if not sug:
                 continue
 
-            timeout_paso = 18000 if es_sap else timeout_ms
-            locator_valido = None
+            timeout_paso = 15000 if es_sap else timeout_ms
             locators_candidatos = resolver_locators_candidatos(page, sug, accion.get("ruta_iframes"))
-
-            for loc in locators_candidatos:
-                try:
-                    loc.first.wait_for(state="attached", timeout=timeout_paso)
-                    locator_valido = loc.first
-                    break
-                except Exception:
-                    continue
+            locator_valido = _buscar_locator_rapido(locators_candidatos, timeout_paso)
 
             if not locator_valido:
                 # Reintento resiliente: cerrar posibles popups bloqueantes de SAP y reintentar
                 cerrar_modales_emergentes(page)
-                page.wait_for_timeout(1200)
-                for loc in locators_candidatos:
-                    try:
-                        loc.first.wait_for(state="attached", timeout=5000)
-                        locator_valido = loc.first
-                        break
-                    except Exception:
-                        continue
+                locator_valido = _buscar_locator_rapido(locators_candidatos, 4000)
 
             if not locator_valido:
                 print(f"[ENRICH] Advertencia: No se pudo localizar elemento en paso {idx + 1} ({desc}). Continuando...")
@@ -406,20 +422,20 @@ def enriquecer_pasos_dom(
 
                 # Ejecución real de la acción para avanzar la página al próximo estado
                 if tipo == "click":
-                    locator_valido.click(timeout=timeout_paso)
+                    locator_valido.click(timeout=min(timeout_paso, 5000))
                     if any(k in sug for k in ["[id*=\"[", "_c", "tbl"]):
-                        page.wait_for_timeout(350)
+                        page.wait_for_timeout(200)
                 elif tipo == "fill":
                     try:
-                        locator_valido.fill(valor or "", timeout=timeout_paso)
+                        locator_valido.fill(valor or "", timeout=min(timeout_paso, 3000))
                     except Exception as ex_fill:
                         # Fallback 1: Si el selector apunta al <td> contenedor, buscar input/textarea hijo
                         exito_fill = False
                         try:
                             input_hijo = locator_valido.locator("input, textarea, [contenteditable='true']").first
-                            input_hijo.wait_for(state="attached", timeout=2500)
-                            input_hijo.fill(valor or "", timeout=timeout_paso)
-                            exito_fill = True
+                            if input_hijo.count() > 0:
+                                input_hijo.fill(valor or "", timeout=3000)
+                                exito_fill = True
                         except Exception:
                             pass
 
@@ -427,18 +443,18 @@ def enriquecer_pasos_dom(
                             try:
                                 # Fallback 2: Clic directo para enfocar y tipeo secuencial
                                 locator_valido.click(timeout=1500)
-                                page.wait_for_timeout(200)
-                                locator_valido.press_sequentially(valor or "", delay=30)
+                                page.wait_for_timeout(150)
+                                locator_valido.press_sequentially(valor or "", delay=25)
                                 exito_fill = True
                             except Exception:
                                 raise ex_fill
                 elif tipo in ("select", "change"):
-                    locator_valido.select_option(valor or "", timeout=timeout_paso)
+                    locator_valido.select_option(valor or "", timeout=min(timeout_paso, 5000))
                 elif tipo == "key":
-                    locator_valido.press(valor or "Enter", timeout=timeout_paso)
+                    locator_valido.press(valor or "Enter", timeout=min(timeout_paso, 5000))
                 elif tipo == "extract":
                     try:
-                        accion["valor"] = locator_valido.inner_text(timeout=timeout_paso).strip()
+                        accion["valor"] = locator_valido.inner_text(timeout=min(timeout_paso, 5000)).strip()
                     except Exception:
                         pass
                 elif tipo in ("upload", "file_upload"):
@@ -448,19 +464,19 @@ def enriquecer_pasos_dom(
                         ruta_archivo = os.path.abspath(ruta_archivo.strip())
                     try:
                         with page.expect_file_chooser(timeout=min(timeout_paso, 5000)) as fc_info:
-                            locator_valido.click(timeout=timeout_paso)
+                            locator_valido.click(timeout=min(timeout_paso, 5000))
                         if ruta_archivo and isinstance(ruta_archivo, str) and os.path.exists(ruta_archivo):
                             fc_info.value.set_files(ruta_archivo)
                     except Exception:
                         if ruta_archivo and isinstance(ruta_archivo, str) and os.path.exists(ruta_archivo):
                             try:
-                                locator_valido.set_input_files(ruta_archivo, timeout=timeout_paso)
+                                locator_valido.set_input_files(ruta_archivo, timeout=min(timeout_paso, 5000))
                             except Exception:
                                 pass
                 elif tipo == "download":
                     try:
                         with page.expect_download(timeout=min(timeout_paso, 10000)) as dl_info:
-                            locator_valido.click(timeout=timeout_paso)
+                            locator_valido.click(timeout=min(timeout_paso, 5000))
                         if not valor:
                             accion["valor"] = dl_info.value.suggested_filename
                     except Exception:
@@ -476,28 +492,27 @@ def enriquecer_pasos_dom(
                     # Esperar a que el entorno ITS termine de cargar el iframe principal
                     try:
                         page.locator('iframe[name*="itsframe" i]').first.wait_for(state="attached", timeout=20000)
-                        page.wait_for_timeout(3500)
+                        page.wait_for_timeout(2500)
                     except Exception:
-                        page.wait_for_timeout(5000)
+                        page.wait_for_timeout(4000)
                     cerrar_modales_emergentes(page)
                 elif es_transaccion and es_sap:
-                    page.wait_for_timeout(4500)
+                    page.wait_for_timeout(3500)
                     cerrar_modales_emergentes(page)
                 elif es_ejecutar and es_sap:
-                    page.wait_for_timeout(3000)
+                    page.wait_for_timeout(2000)
                     cerrar_modales_emergentes(page)
                 else:
-                    page.wait_for_timeout(500)
+                    page.wait_for_timeout(250)
 
             except Exception as ex_accion:
                 print(f"[ENRICH] Advertencia al ejecutar paso {idx + 1} ({desc}): {ex_accion}")
                 cerrar_modales_emergentes(page)
 
         try:
-            page.wait_for_timeout(1000)
+            page.wait_for_timeout(800)
             browser.close()
         except Exception:
             pass
 
     return acciones
-

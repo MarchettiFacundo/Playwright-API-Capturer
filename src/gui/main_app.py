@@ -89,6 +89,7 @@ class CapturaApp:
         self.config_http_user = tk.StringVar(value="")
         self.config_http_pass = tk.StringVar(value="")
         self.config_trace_en_codigo = tk.BooleanVar(value=False)
+        self.config_video_en_codigo = tk.BooleanVar(value=False)
         self.codegen_process = None
         self.grabar_teclas_activo = False
         
@@ -236,6 +237,10 @@ class CapturaApp:
                 self.config_http_user.set(str(cfg["http_user"]))
             if "http_pass" in cfg:
                 self.config_http_pass.set(str(cfg["http_pass"]))
+            if "trace_en_codigo" in cfg:
+                self.config_trace_en_codigo.set(bool(cfg["trace_en_codigo"]))
+            if "video_en_codigo" in cfg:
+                self.config_video_en_codigo.set(bool(cfg["video_en_codigo"]))
         except Exception as ex:
             print(f"[WARN] Error al cargar config_gui.json: {ex}")
 
@@ -257,7 +262,9 @@ class CapturaApp:
                 "usar_cdp": self.config_usar_cdp.get(),
                 "puerto_cdp": self.config_puerto_cdp.get(),
                 "http_user": self.config_http_user.get(),
-                "http_pass": self.config_http_pass.get()
+                "http_pass": self.config_http_pass.get(),
+                "trace_en_codigo": self.config_trace_en_codigo.get(),
+                "video_en_codigo": self.config_video_en_codigo.get()
             }
             os.makedirs(os.path.dirname(self.archivo_config_gui), exist_ok=True)
             with open(self.archivo_config_gui, "w", encoding="utf-8") as f:
@@ -2463,6 +2470,7 @@ class CapturaApp:
                         parametrizar=self.var_parametrizar.get(),
                         storage_state=self.config_storage_state.get().strip(),
                         incluir_trace=self.config_trace_en_codigo.get(),
+                        incluir_video=self.config_video_en_codigo.get(),
                         modo_resiliente=var_modo_resiliente.get(),
                         http_user=self.config_http_user.get().strip(),
                         http_password=self.config_http_pass.get().strip()
@@ -3099,10 +3107,13 @@ class CapturaApp:
         chk_trace_gen = tb.Checkbutton(out_frame, text="Iniciar traza en código generado (Trace Viewer)", variable=self.config_trace_en_codigo, bootstyle="round-toggle")
         chk_trace_gen.grid(row=1, column=0, columnspan=2, sticky="w", pady=4)
 
+        chk_video_gen = tb.Checkbutton(out_frame, text="Grabar video en código generado (videos_automatizacion/)", variable=self.config_video_en_codigo, bootstyle="round-toggle")
+        chk_video_gen.grid(row=2, column=0, columnspan=2, sticky="w", pady=4)
+
         lbl_timeout = ttk.Label(out_frame, text="Timeout global (seg):")
-        lbl_timeout.grid(row=2, column=0, sticky="w", pady=6, padx=(0, 5))
+        lbl_timeout.grid(row=3, column=0, sticky="w", pady=6, padx=(0, 5))
         entry_timeout = ttk.Entry(out_frame, textvariable=self.config_timeout, width=8, font=("Segoe UI", 9))
-        entry_timeout.grid(row=2, column=1, sticky="w", pady=6)
+        entry_timeout.grid(row=3, column=1, sticky="w", pady=6)
 
         dir_frame = ttk.LabelFrame(main_frame, text="Carpeta de Almacenamiento", padding=10)
         dir_frame.pack(fill="x", pady=5)

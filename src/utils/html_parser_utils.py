@@ -131,7 +131,6 @@ def parsear_elemento_devtools(html_crudo: str) -> Dict[str, Any]:
         es_modal_wnd1 = True
 
     # 3. Detección de coordenadas de tabla SAP: [fila,columna]
-    # Puede estar en el ID (ej: tbl112[1,2]_c), en sap_slow_id o en el SID de SAP
     match_coord = re.search(r'\[(\d+,\d+)\](_c)?', elem_id)
     if not match_coord and sap_slow_id:
         match_coord = re.search(r'\[(\d+,\d+)\]', sap_slow_id)
@@ -147,39 +146,30 @@ def parsear_elemento_devtools(html_crudo: str) -> Dict[str, Any]:
     # 4. Generación algorítmica de selectores candidatos resilientes
     selectores = []
 
-    # A. Coordenadas de celdas SAP (Prioridad Máxima por resiliencia frente a cambios de prefijo de tabla)
+    # A. Coordenadas de celdas SAP (Priorizando coincidencia inmediata tanto para span como input)
     if match_coord:
         coord = match_coord.group(1)
         sap_coord = coord
-        
-        # 1. Selector de input con coordenadas exactas de celda: input[id*="[1,2]_c"]
-        if tag in ("input", "textarea", "select"):
-            selectores.append(f'{tag}[id*="[{coord}]_c"]')
-        selectores.append(f'[id*="[{coord}]_c"]')
 
-        # 2. Selector por identificador técnico ABAP en lsdata (ej: input[lsdata*="SLOW_I[1,0]"])
+        if elem_id:
+            selectores.append(f'[id="{elem_id}"]')
+
+        # 1. Selector universal con sufijo de celda activa/inactiva _c (coincide con span o input al instante)
+        selectores.append(f'[id*="[{coord}]_c"]')
+        if tag in ("input", "textarea", "select", "span"):
+            selectores.append(f'{tag}[id*="[{coord}]_c"]')
+        selectores.append(f'input[id*="[{coord}]_c"]')
+        selectores.append(f'span[id*="[{coord}]_c"]')
+
+        # 2. Selector por identificador técnico ABAP en lsdata (ej: [lsdata*="SLOW_I[1,0]"])
         if sap_slow_id:
             slow_esc = sap_slow_id.replace('"', '\\"')
+            selectores.append(f'[lsdata*="{slow_esc}"]')
             if tag in ("input", "textarea", "select"):
                 selectores.append(f'{tag}[lsdata*="{slow_esc}"]')
-            selectores.append(f'[lsdata*="{slow_esc}"]')
 
-        # 3. Selector anclado al contenedor de la ventana activa / modal (ej: [id^="M1:"] input[id*="[1,2]"])
-        if es_modal_wnd1:
-            if tag in ("input", "textarea", "select"):
-                selectores.append(f'[id^="M1:"] {tag}[id*="[{coord}]"]')
-            selectores.append(f'[id^="M1:"] [id*="[{coord}]"]')
-        elif elem_id.startswith("M0:") or "wnd[0]" in sap_sid:
-            if tag in ("input", "textarea", "select"):
-                selectores.append(f'[id^="M0:"] {tag}[id*="[{coord}]"]')
-            selectores.append(f'[id^="M0:"] [id*="[{coord}]"]')
-
-        # 4. Selector por TD contenedor de la tabla (td[id*="[1,2]"] input)
-        if tag in ("input", "textarea", "select"):
-            selectores.append(f'td[id*="[{coord}]"] {tag}')
-            selectores.append(f'td[id*="[{coord}]"] input')
-
-        # 5. Selector con coordenada sin sufijo: [id*="[1,2]"]
+        # 3. Selector por TD contenedor de la tabla
+        selectores.append(f'td[id*="[{coord}]"] input')
         selectores.append(f'[id*="[{coord}]"]')
 
     # B. Selectores para botones o campos de menú SAP (ej: M0:46:1:1:2::12:53 o M1:37::btn[8])
@@ -188,6 +178,7 @@ def parsear_elemento_devtools(html_crudo: str) -> Dict[str, Any]:
         partes_dos_puntos = elem_id.split("::")
         if len(partes_dos_puntos) > 1:
             sufijo = partes_dos_puntos[-1].strip()
+            sufijo = re.sub(r'["\']\]$', '', sufijo).strip('"\'\\ ')
             if sufijo:
                 selectores.append(f'[id$="::{sufijo}"]')
                 selectores.append(f'[id*="::{sufijo}"]')
@@ -196,7 +187,7 @@ def parsear_elemento_devtools(html_crudo: str) -> Dict[str, Any]:
                 elif elem_id.startswith("M0:"):
                     selectores.append(f'[id^="M0:"][id*="::{sufijo}"]')
 
-    # C. Selector exacto por ID (si no es celda tblXXX volátil o si no tiene :: ya agregado)
+    # C. Selector exacto por ID (si no fue agregado antes)
     if elem_id and f'[id="{elem_id}"]' not in selectores:
         selectores.append(f'[id="{elem_id}"]')
         if tag != "element":

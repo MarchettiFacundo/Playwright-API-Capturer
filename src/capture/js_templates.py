@@ -44,25 +44,26 @@ JS_SCRIPT = r"""
         if (el.id && /\[\d+,\d+\]/.test(el.id)) {
             let mCoord = el.id.match(/\[\d+,\d+\]/);
             if (mCoord) {
-                return `${tag}[id*="${mCoord[0]}_c"]`;
+                return `[id*="${mCoord[0]}_c"]`;
             }
         }
         let lsdataVal = el.getAttribute("lsdata");
         if (lsdataVal) {
             let mSlow = lsdataVal.match(/(SLOW_[A-Z0-9_]+\[\d+,\d+\])/);
             if (mSlow) {
-                return `${tag}[lsdata*="${mSlow[1]}"]`;
+                return `[lsdata*="${mSlow[1]}"]`;
             }
         }
         if (el.id && el.id.includes("::")) {
-            let mSuf = el.id.match(/::([^"':\s\]]+)$/);
-            if (mSuf) {
-                return `[id$="::${mSuf[1]}"]`;
-            }
             return `[id="${el.id}"]`;
         }
 
-        // 1. Selector por etiqueta asociada (get_by_label)
+        // 1. IDs estáticos limpios (máxima velocidad y precisión cuando existen)
+        if (el.id && esIdValido(el.id)) {
+            return `[id="${el.id}"]`;
+        }
+
+        // 2. Selector por etiqueta asociada (get_by_label)
         let labelText = "";
         if (el.id) {
             let labelEl = document.querySelector(`label[for="${el.id}"]`);
@@ -81,13 +82,13 @@ JS_SCRIPT = r"""
             return `label="${labelText.replace(/"/g, '\\"')}"`;
         }
 
-        // 2. Selector por placeholder (get_by_placeholder)
+        // 3. Selector por placeholder (get_by_placeholder)
         let placeholder = el.getAttribute("placeholder");
         if (placeholder && placeholder.trim().length > 0) {
             return `placeholder="${placeholder.trim().replace(/"/g, '\\"')}"`;
         }
         
-        // 3. Selector por rol de accesibilidad (get_by_role)
+        // 4. Selector por rol de accesibilidad (get_by_role)
         let role = el.getAttribute("role");
         if (!role) {
             if (tag === 'button' || (tag === 'input' && ['button', 'submit', 'reset'].includes(el.type))) {
@@ -122,17 +123,12 @@ JS_SCRIPT = r"""
             }
         }
 
-        // 4. Selector por texto visible corto (get_by_text)
+        // 5. Selector por texto visible corto (get_by_text)
         if (!esExtraccion) {
             let textContent = el.textContent ? el.textContent.trim() : "";
             if ((tag === 'span' || tag === 'div' || tag === 'p' || tag === 'td' || tag === 'th') && textContent.length > 0 && textContent.length < 40) {
                 return `text="${textContent.replace(/"/g, '\\"')}"`;
             }
-        }
-
-        // 5. IDs estáticos
-        if (el.id && esIdValido(el.id)) {
-            return `id=${el.id}`;
         }
         
         // 6. Name
